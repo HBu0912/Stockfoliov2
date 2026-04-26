@@ -16,6 +16,14 @@ type YahooResult = {
   marketCap?: number;
 };
 
+type YahooSummaryResponse = {
+  quoteSummary?: {
+    result?: Array<{
+      defaultKeyStatistics?: { sharesOutstanding?: { raw?: number } };
+    }>;
+  };
+};
+
 type StooqRow = {
   Symbol?: string;
   Close?: string;
@@ -66,6 +74,34 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   const r = data.quoteResponse?.result?.[0];
   if (!r?.marketCap || !Number.isFinite(r.marketCap)) return null;
   return Number(r.marketCap);
+}
+
+async function fetchYahooSharesOutstanding(symbol: string): Promise<number | null> {
+  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
+    symbol
+  )}?modules=defaultKeyStatistics`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      Accept: "application/json,text/plain,*/*",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as YahooSummaryResponse;
+  const raw =
+    data.quoteSummary?.result?.[0]?.defaultKeyStatistics?.sharesOutstanding?.raw;
+  if (raw == null || !Number.isFinite(raw) || raw <= 0) return null;
+  return Number(raw);
+}
+
+async function enrichMarketCap(symbol: string, price: number): Promise<number | null> {
+  const directCap = await fetchYahooMarketCap(symbol).catch(() => null);
+  if (directCap != null) return directCap;
+  const sharesOutstanding = await fetchYahooSharesOutstanding(symbol).catch(() => null);
+  if (sharesOutstanding == null) return null;
+  return sharesOutstanding * price;
 }
 
 async function fetchStooq(symbol: string): Promise<Quote | null> {
@@ -153,7 +189,9 @@ export async function fetchQuote(rawSymbol: string): Promise<Quote> {
   try {
     const yahooChart = await fetchYahooChart(symbol);
     if (yahooChart) {
-      const cap = await fetchYahooMarketCap(yahooChart.symbol).catch(() => null);
+      const cap = await enrichMarketCap(yahooChart.symbol, yahooChart.price).catch(
+        () => null
+      );
       if (cap != null) {
         return {
           ...yahooChart,
@@ -170,7 +208,7 @@ export async function fetchQuote(rawSymbol: string): Promise<Quote> {
   try {
     const stooq = await fetchStooq(symbol);
     if (stooq) {
-      const cap = await fetchYahooMarketCap(stooq.symbol).catch(() => null);
+      const cap = await enrichMarketCap(stooq.symbol, stooq.price).catch(() => null);
       if (cap != null) {
         return {
           ...stooq,
@@ -187,7 +225,9 @@ export async function fetchQuote(rawSymbol: string): Promise<Quote> {
   try {
     const stooqCsv = await fetchStooqCsv(symbol);
     if (stooqCsv) {
-      const cap = await fetchYahooMarketCap(stooqCsv.symbol).catch(() => null);
+      const cap = await enrichMarketCap(stooqCsv.symbol, stooqCsv.price).catch(
+        () => null
+      );
       if (cap != null) {
         return {
           ...stooqCsv,

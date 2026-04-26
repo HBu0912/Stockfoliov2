@@ -31,12 +31,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
       data: {
         name: q.name,
         lastPrice: q.price,
-        marketCap: q.marketCap ?? holding.shares * q.price,
-        marketCapText:
-          q.marketCapText ??
-          `$${(holding.shares * q.price).toLocaleString("en-US", {
-            maximumFractionDigits: 0,
-          })}`,
+        marketCap: q.marketCap,
+        marketCapText: q.marketCapText,
       },
     });
     return NextResponse.json({ holding: updated });

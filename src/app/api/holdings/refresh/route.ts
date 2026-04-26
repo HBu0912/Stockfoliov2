@@ -43,12 +43,8 @@ export async function POST() {
           symbol: q.symbol,
           name: q.name,
           lastPrice: q.price,
-          marketCap: q.marketCap ?? h.shares * q.price,
-          marketCapText:
-            q.marketCapText ??
-            `$${(h.shares * q.price).toLocaleString("en-US", {
-              maximumFractionDigits: 0,
-            })}`,
+          marketCap: q.marketCap,
+          marketCapText: q.marketCapText,
         },
       });
     })
