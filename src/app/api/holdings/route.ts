@@ -1,5 +1,4 @@
 import { getSession } from "@/lib/auth";
-import { fetchQuote } from "@/lib/market";
 import { prisma } from "@/lib/prisma";
 import { recordHoldingPositionChange } from "@/lib/record-feed";
 import { NextResponse } from "next/server";
@@ -19,20 +18,13 @@ export async function POST(req: Request) {
   }
   const acc = await prisma.account.findFirst({ where: { id: accountId, userId: s.userId } });
   if (!acc) return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  let quote;
-  try {
-    quote = await fetchQuote(sym);
-  } catch (e) {
-    const m = e instanceof Error ? e.message : "Could not load quote";
-    return NextResponse.json({ error: m }, { status: 400 });
-  }
-  const existing = await prisma.holding.findFirst({ where: { accountId, symbol: quote.symbol } });
+  const existing = await prisma.holding.findFirst({ where: { accountId, symbol: sym } });
   if (existing) {
     const oldS = existing.shares;
     const newS = oldS + shares;
     const h = await prisma.holding.update({
       where: { id: existing.id },
-      data: { shares: newS, lastPrice: quote.price, name: quote.name, marketCap: quote.marketCap, marketCapText: quote.marketCapText },
+      data: { shares: newS },
     });
     await recordHoldingPositionChange(
       s.userId,
@@ -48,12 +40,12 @@ export async function POST(req: Request) {
   const h = await prisma.holding.create({
     data: {
       accountId: acc.id,
-      symbol: quote.symbol,
-      name: quote.name,
+      symbol: sym,
+      name: sym,
       shares,
-      lastPrice: quote.price,
-      marketCap: quote.marketCap,
-      marketCapText: quote.marketCapText,
+      lastPrice: null,
+      marketCap: null,
+      marketCapText: null,
     },
   });
   await recordHoldingPositionChange(s.userId, 0, shares, h.symbol, h.name, acc.id, acc.name);

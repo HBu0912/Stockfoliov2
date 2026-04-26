@@ -25,13 +25,13 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --card: #111827;
-    --card-border: #1f2937;
-    --muted: #9ca3af;
-    --accent: #2dd4bf;
-    --accent-foreground: #042f2e;
+    --background: #111827;
+    --foreground: #e5e7eb;
+    --card: #1f2937;
+    --card-border: #374151;
+    --muted: #cbd5e1;
+    --accent: #34d399;
+    --accent-foreground: #052e2b;
     --chart-1: oklch(0.72 0.14 255);
     --chart-2: oklch(0.7 0.16 40);
     --chart-3: oklch(0.75 0.1 150);

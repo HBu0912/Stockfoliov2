@@ -245,7 +245,7 @@ export default function OverviewPage() {
           <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
             <h2 className="text-lg font-semibold">Add holding</h2>
             <p className="text-sm text-(--muted)">
-              Add shares to the selected account. Price and company data are fetched automatically.
+              Add shares to the selected account. Use "Refresh price" on each holding to fetch/update quote data.
             </p>
             <form
               onSubmit={addHolding}
