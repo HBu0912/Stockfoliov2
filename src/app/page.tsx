@@ -11,10 +11,9 @@ export default async function Home() {
       <div className="mb-5 flex justify-center">
         <BrandMark size="lg" />
       </div>
-      <h1 className="text-center text-3xl font-semibold tracking-tight">Build your stock story with friends</h1>
+      <h1 className="text-center text-3xl font-semibold tracking-tight">Your All-In-One Investing Hub</h1>
       <p className="mx-auto mt-3 max-w-3xl text-center text-(--muted)">
-        Track named accounts and holdings (with live quotes), read a position-based investing feed, compare combined portfolio
-        weights with friends in arenas, and keep account-only activity on each account page.
+        Add all your accounts to see the big picture of your future. Join an arena and compare portfolios with friends.
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link
@@ -31,58 +30,43 @@ export default async function Home() {
         </Link>
       </div>
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-          <h2 className="text-left text-base font-semibold">Dashboard preview</h2>
-          <div className="mt-3 rounded-xl border border-(--card-border) bg-(--background) p-3">
-            <div className="grid gap-3 xl:grid-cols-[180px_1fr]">
-              <div className="rounded-lg border border-(--card-border) p-2">
-                <p className="text-xs font-medium text-(--muted)">Accounts</p>
-                <ul className="mt-2 space-y-1 text-xs">
-                  <li className="rounded bg-(--card) px-2 py-1">Consolidated Overview</li>
-                  <li className="rounded border border-(--card-border) px-2 py-1">Brokerage</li>
-                  <li className="rounded border border-(--card-border) px-2 py-1">Roth IRA</li>
-                </ul>
-              </div>
-              <div className="space-y-2">
-                <div className="rounded-lg border border-(--card-border) p-2">
-                  <p className="text-sm font-medium">Consolidated Overview</p>
-                  <p className="text-xs text-(--muted)">Portfolio value: $128,450</p>
-                </div>
-                <div className="rounded-lg border border-(--card-border) p-2 text-xs">
-                  <div className="flex justify-between"><span>AAPL</span><span>26.4%</span></div>
-                  <div className="flex justify-between"><span>MSFT</span><span>19.1%</span></div>
-                  <div className="flex justify-between"><span>NVDA</span><span>15.8%</span></div>
-                  <div className="flex justify-between"><span>Other</span><span>38.7%</span></div>
-                </div>
-              </div>
-            </div>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <section className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-5 shadow-sm">
+          <div className="mb-3 inline-flex rounded-lg bg-emerald-500/20 p-2">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 text-emerald-300" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
+            </svg>
           </div>
+          <h2 className="text-lg font-semibold">Unified Dashboard</h2>
+          <p className="mt-1 text-sm text-(--muted)">
+            See every account in one place with consolidated allocation, account-level details, and quick actions.
+          </p>
         </section>
 
-        <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-          <h2 className="text-left text-base font-semibold">Arenas preview</h2>
-          <div className="mt-3 rounded-xl border border-(--card-border) bg-(--background) p-3">
-            <div className="grid gap-2 text-xs">
-              <div className="rounded-lg border border-(--card-border) p-2">
-                <p className="font-medium">Weekend Investors</p>
-                <p className="text-(--muted)">3 members · code R82JKP1</p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-lg border border-(--card-border) p-2">
-                  <p className="font-medium">You</p>
-                  <p className="text-(--muted)">AAPL 24%, MSFT 20%, NVDA 14%</p>
-                </div>
-                <div className="rounded-lg border border-(--card-border) p-2">
-                  <p className="font-medium">Friend</p>
-                  <p className="text-(--muted)">TSLA 18%, AAPL 17%, AMZN 14%</p>
-                </div>
-              </div>
-              <div className="rounded-lg border border-(--card-border) p-2 text-(--muted)">
-                Compare portfolio mixes, overlap scores, and investing activity.
-              </div>
-            </div>
+        <section className="rounded-2xl border border-sky-500/25 bg-sky-500/10 p-5 shadow-sm">
+          <div className="mb-3 inline-flex rounded-lg bg-sky-500/20 p-2">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 text-sky-300" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 18V6m8 12V10m8 8V3" strokeLinecap="round" />
+            </svg>
           </div>
+          <h2 className="text-lg font-semibold">Actionable Insights</h2>
+          <p className="mt-1 text-sm text-(--muted)">
+            Follow your investing feed, monitor allocation shifts, and refresh prices whenever you want.
+          </p>
+        </section>
+
+        <section className="rounded-2xl border border-violet-500/25 bg-violet-500/10 p-5 shadow-sm">
+          <div className="mb-3 inline-flex rounded-lg bg-violet-500/20 p-2">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 text-violet-300" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="8" cy="8" r="3" />
+              <circle cx="16" cy="10" r="3" />
+              <path d="M3 20c.6-2.7 2.7-4 5-4s4.4 1.3 5 4M11 20c.5-2 2-3 4-3 2.1 0 3.6 1 4 3" strokeLinecap="round" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold">Arena Comparison</h2>
+          <p className="mt-1 text-sm text-(--muted)">
+            Join friends in arenas, compare portfolio mixes, and discover shared opportunities.
+          </p>
         </section>
       </div>
     </div>

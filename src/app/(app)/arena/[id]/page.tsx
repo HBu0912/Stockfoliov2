@@ -99,11 +99,6 @@ export default function ArenaDetailPage() {
     const top5 = selected.rows.slice(0, 5).reduce((s, r) => s + r.pct, 0);
     return Math.max(0, Math.min(100, 100 - top5 + Math.min(20, selected.rows.length * 2)));
   }, [selected]);
-  const marketCapBias = useMemo(() => {
-    if (!selected) return "Unknown";
-    const top = selected.rows.slice(0, 3).map((r) => r.label).join(", ");
-    return top ? `Concentrated in top caps: ${top}` : "Unknown";
-  }, [selected]);
 
   async function renameArena(e: React.FormEvent) {
     e.preventDefault();
@@ -216,23 +211,28 @@ export default function ArenaDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-4">
-            <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
-              <h4 className="font-medium">Shared tickers</h4>
-              {shared.length === 0 ? <p className="text-sm text-(--muted)">None yet.</p> : <p className="mt-2 text-sm font-mono">{shared.join(", ")}</p>}
+          <div className="mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center shadow-sm">
+              <h4 className="font-medium text-emerald-200">Shared tickers</h4>
+              {shared.length === 0 ? (
+                <p className="mt-2 text-sm text-(--muted)">None yet.</p>
+              ) : (
+                <p className="mt-2 text-sm font-mono">{shared.join(", ")}</p>
+              )}
             </div>
-            <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
-              <h4 className="inline-flex items-center gap-1 font-medium">Diversification score <Info text="Score uses concentration of top 5 tickers and total ticker count. Higher score means less concentration." /></h4>
-              <p className="mt-2 text-sm">{diversification.toFixed(0)} / 100</p>
+            <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 text-center shadow-sm">
+              <h4 className="inline-flex items-center justify-center gap-1 font-medium text-sky-200">
+                Diversification score
+                <Info text="Score uses concentration of top 5 tickers and total ticker count. Higher score means less concentration." />
+              </h4>
+              <p className="mt-2 text-2xl font-semibold">{diversification.toFixed(0)} / 100</p>
             </div>
-            <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
-              <h4 className="inline-flex items-center gap-1 font-medium">Holdings overlap score <Info text="Jaccard-style overlap: shared tickers divided by total unique tickers across both portfolios." /></h4>
-              <p className="mt-2 text-sm">{overlapScore.toFixed(0)}%</p>
-            </div>
-            <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
-              <h4 className="font-medium">Market cap bias</h4>
-              <p className="mt-2 text-sm text-(--muted)">{marketCapBias}</p>
-              <p className="mt-2 text-xs text-(--muted)">Sector/industry and average P/E comparison coming next.</p>
+            <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-4 text-center shadow-sm">
+              <h4 className="inline-flex items-center justify-center gap-1 font-medium text-violet-200">
+                Holdings overlap score
+                <Info text="Jaccard-style overlap: shared tickers divided by total unique tickers across both portfolios." />
+              </h4>
+              <p className="mt-2 text-2xl font-semibold">{overlapScore.toFixed(0)}%</p>
             </div>
           </div>
         </section>

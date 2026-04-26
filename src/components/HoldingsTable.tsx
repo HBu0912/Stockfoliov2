@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
+import { formatNumber, formatUsd } from "@/lib/money";
 import type { Holding } from "@/generated/prisma";
 
 type H = Holding;
@@ -22,11 +22,10 @@ export function HoldingsTable({
   }
   return (
     <div className="overflow-x-auto rounded-lg border border-(--card-border)">
-      <table className="w-full min-w-[560px] text-left text-sm">
+      <table className="w-full min-w-[500px] text-left text-sm">
         <thead className="bg-(--card) text-(--muted)">
           <tr>
             <th className="p-2 font-medium">Ticker</th>
-            <th className="p-2 text-right font-medium">Market cap</th>
             <th className="p-2 text-right font-medium">Shares</th>
             <th className="p-2 text-right font-medium">Last price</th>
             <th className="p-2 text-right font-medium">Value</th>
@@ -41,9 +40,6 @@ export function HoldingsTable({
             return (
               <tr key={h.id} className="border-t border-(--card-border)">
                 <td className="p-2 font-mono font-medium">{h.symbol}</td>
-                <td className="p-2 text-right text-(--muted)">
-                  {h.marketCapText ?? formatMarketCap(h.marketCap)}
-                </td>
                 <td className="p-2 text-right font-mono">{formatNumber(h.shares, 4)}</td>
                 <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
                 <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
