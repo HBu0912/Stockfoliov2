@@ -21,50 +21,89 @@ export function HoldingsTable({
     return <p className="text-sm text-(--muted)">No holdings in this list yet.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-(--card-border)">
-      <table className="w-full min-w-[500px] text-left text-sm">
-        <thead className="bg-(--card) text-(--muted)">
-          <tr>
-            <th className="p-2 font-medium">Ticker</th>
-            <th className="p-2 text-right font-medium">Shares</th>
-            <th className="p-2 text-right font-medium">Last price</th>
-            <th className="p-2 text-right font-medium">Value</th>
-            <th className="p-2 text-right font-medium">% of Account</th>
-            {(onEditShares || onRemove) && <th className="p-2 w-40" />}
-          </tr>
-        </thead>
-        <tbody>
-          {holdings.map((h) => {
-            const val = h.shares * (h.lastPrice ?? 0);
-            const pct = accountTotal > 0 ? (val / accountTotal) * 100 : 0;
-            return (
-              <tr key={h.id} className="border-t border-(--card-border)">
-                <td className="p-2 font-mono font-medium">{h.symbol}</td>
-                <td className="p-2 text-right font-mono">{formatNumber(h.shares, 4)}</td>
-                <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
-                <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
-                <td className="p-2 text-right">{accountTotal > 0 ? `${pct.toFixed(1)}%` : "—"}</td>
-                {(onEditShares || onRemove) && (
-                  <td className="p-2">
-                    <div className="flex flex-wrap items-center justify-end gap-1">
-                      {onEditShares && <EditShares id={h.id} current={h.shares} onSave={onEditShares} />}
-                      {onRemove && (
-                        <button
-                          type="button"
-                          onClick={() => onRemove(h.id)}
-                          className="rounded border border-red-900/30 px-2 py-0.5 text-xs text-red-600 dark:text-red-400"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="space-y-2">
+      <div className="space-y-2 md:hidden">
+        {holdings.map((h) => {
+          const val = h.shares * (h.lastPrice ?? 0);
+          const pct = accountTotal > 0 ? (val / accountTotal) * 100 : 0;
+          return (
+            <article key={h.id} className="rounded-lg border border-(--card-border) bg-(--background) p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-mono text-sm font-semibold">{h.symbol}</span>
+                <span className="text-sm font-medium">{accountTotal > 0 ? `${pct.toFixed(1)}%` : "—"}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-y-1 text-xs">
+                <span className="text-(--muted)">Shares</span>
+                <span className="text-right font-mono">{formatNumber(h.shares, 4)}</span>
+                <span className="text-(--muted)">Last price</span>
+                <span className="text-right">{formatUsd(h.lastPrice)}</span>
+                <span className="text-(--muted)">Value</span>
+                <span className="text-right font-medium">{formatUsd(val)}</span>
+              </div>
+              {(onEditShares || onRemove) && (
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-1">
+                  {onEditShares && <EditShares id={h.id} current={h.shares} onSave={onEditShares} />}
+                  {onRemove && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove(h.id)}
+                      className="rounded border border-red-900/30 px-2 py-0.5 text-xs text-red-600 dark:text-red-400"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-(--card-border) md:block">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-(--card) text-(--muted)">
+            <tr>
+              <th className="p-2 font-medium">Ticker</th>
+              <th className="p-2 text-right font-medium">Shares</th>
+              <th className="p-2 text-right font-medium">Last price</th>
+              <th className="p-2 text-right font-medium">Value</th>
+              <th className="p-2 text-right font-medium">% of Account</th>
+              {(onEditShares || onRemove) && <th className="p-2 w-40" />}
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.map((h) => {
+              const val = h.shares * (h.lastPrice ?? 0);
+              const pct = accountTotal > 0 ? (val / accountTotal) * 100 : 0;
+              return (
+                <tr key={h.id} className="border-t border-(--card-border)">
+                  <td className="p-2 font-mono font-medium">{h.symbol}</td>
+                  <td className="p-2 text-right font-mono">{formatNumber(h.shares, 4)}</td>
+                  <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
+                  <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
+                  <td className="p-2 text-right">{accountTotal > 0 ? `${pct.toFixed(1)}%` : "—"}</td>
+                  {(onEditShares || onRemove) && (
+                    <td className="p-2">
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        {onEditShares && <EditShares id={h.id} current={h.shares} onSave={onEditShares} />}
+                        {onRemove && (
+                          <button
+                            type="button"
+                            onClick={() => onRemove(h.id)}
+                            className="rounded border border-red-900/30 px-2 py-0.5 text-xs text-red-600 dark:text-red-400"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
