@@ -6,7 +6,6 @@ import { useState } from "react";
 
 const links = [
   { href: "/overview", label: "Overview" },
-  { href: "/feed", label: "Investing feed" },
   { href: "/arena", label: "Arenas" },
 ];
 
@@ -14,6 +13,7 @@ export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const [refreshText, setRefreshText] = useState<string | null>(null);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -31,17 +31,16 @@ export function Nav() {
         error?: string;
       };
       if (!res.ok) {
-        alert(data.error ?? "Could not refresh prices right now.");
+        setRefreshText(data.error ?? "Could not refresh prices right now.");
         return;
       }
       window.dispatchEvent(new Event("prices-refreshed"));
-      alert(
-        `Price refresh complete. Updated ${data.updatedCount ?? 0} holdings, skipped ${
-          data.skippedCount ?? 0
-        }.`
+      setRefreshText(
+        `Updated ${data.updatedCount ?? 0}, skipped ${data.skippedCount ?? 0}`
       );
     } finally {
       setRefreshingPrices(false);
+      setTimeout(() => setRefreshText(null), 2800);
     }
   }
 
@@ -77,6 +76,9 @@ export function Nav() {
               </Link>
             );
           })}
+          {refreshText && (
+            <span className="ml-2 text-xs text-(--muted)">{refreshText}</span>
+          )}
           <button
             type="button"
             onClick={() => void logout()}

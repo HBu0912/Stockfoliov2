@@ -9,11 +9,24 @@ import { formatPctChangeLine } from "@/lib/feed-copy";
 import type { Account, AccountFeedEvent, Holding } from "@/generated/prisma";
 
 type A = Account & { holdings: Holding[] };
+type GlobalFeedRow = {
+  id: string;
+  symbol: string;
+  title: string;
+  kind: string;
+  pct: number;
+  oldShares: number;
+  newShares: number;
+  accountName: string | null;
+  createdAt: string;
+  user: { name: string | null; email: string };
+};
 
 export default function AccountDetailPage() {
   const { id } = useParams() as { id: string };
   const [account, setAccount] = useState<A | null>(null);
   const [feed, setFeed] = useState<AccountFeedEvent[]>([]);
+  const [globalFeed, setGlobalFeed] = useState<GlobalFeedRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -29,6 +42,11 @@ export default function AccountDetailPage() {
     if (fr.ok) {
       const fd = (await fr.json()) as { items: AccountFeedEvent[] };
       setFeed(fd.items);
+    }
+    const gr = await fetch("/api/feed");
+    if (gr.ok) {
+      const gd = (await gr.json()) as { items: GlobalFeedRow[] };
+      setGlobalFeed(gd.items.filter((x) => x.accountName === d.account.name));
     }
   }, [id]);
 
@@ -121,7 +139,35 @@ export default function AccountDetailPage() {
       </section>
 
       <section>
-        <h2 className="text-lg font-medium">Activity on this account</h2>
+        <h2 className="text-lg font-medium">Investing feed for this account</h2>
+        <p className="text-(--muted) text-sm">
+          All account-specific position changes (your own and others if visible in feed).
+        </p>
+        {globalFeed.length === 0 ? (
+          <p className="text-(--muted) mt-2">No investing feed entries for this account yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {globalFeed.map((e) => (
+              <li key={e.id} className="rounded-lg border border-(--card-border) bg-(--card) px-3 py-2 text-sm text-foreground/90">
+                {formatPctChangeLine({
+                  userLabel: e.user.name || e.user.email.split("@")[0],
+                  symbol: e.symbol,
+                  title: e.title,
+                  kind: e.kind,
+                  pct: e.pct,
+                  oldShares: e.oldShares,
+                  newShares: e.newShares,
+                  at: e.createdAt,
+                  accountName: e.accountName,
+                })}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium">Your personal account feed</h2>
         <p className="text-(--muted) text-sm">Only this account&rsquo;s line changes, using position-relative % (same idea as the site feed, but not shown in arenas).</p>
         {feed.length === 0 ? (
           <p className="text-(--muted) mt-2">No position changes here yet.</p>

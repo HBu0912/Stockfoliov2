@@ -17,7 +17,7 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
 
   const data = slices.map((s) => ({ name: s.label, value: s.value, fill: s.color, pct: s.pct }));
   return (
-    <div style={{ minHeight: height + 40 }} className="w-full max-w-sm">
+    <div style={{ minHeight: height + 80 }} className="w-full max-w-sm">
       <p className="text-xs text-(--muted) mb-1">
         Top {slices.length <= 5 ? slices.length : 5} + {slices.some((s) => s.label === "Other") ? "Other" : "holdings"}{" "}
         (hover slices)
@@ -33,7 +33,7 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
                 <div className="rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm shadow">
                   <div className="font-medium">{p.name}</div>
                   <div>
-                    {p.pct.toFixed(1)}% of this view
+                    {p.pct.toFixed(1)}% of account
                     {total > 0 && (
                       <span className="text-(--muted)"> — ${(p.value as number).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
                     )}
@@ -69,6 +69,17 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
           </Pie>
         </PieChart>
       </ResponsiveContainer>
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        {slices.map((s) => (
+          <div key={s.label} className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-(--muted)">
+              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+              {s.label}
+            </span>
+            <span className="font-medium text-foreground">{s.pct.toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

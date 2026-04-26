@@ -49,6 +49,25 @@ async function fetchYahoo(symbol: string): Promise<Quote | null> {
   };
 }
 
+async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      Accept: "application/json,text/plain,*/*",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as {
+    quoteResponse?: { result?: YahooResult[] };
+  };
+  const r = data.quoteResponse?.result?.[0];
+  if (!r?.marketCap || !Number.isFinite(r.marketCap)) return null;
+  return Number(r.marketCap);
+}
+
 async function fetchStooq(symbol: string): Promise<Quote | null> {
   // Fallback when Yahoo blocks requests in serverless regions.
   const ticker = symbol.toLowerCase() + ".us";
@@ -133,21 +152,51 @@ export async function fetchQuote(rawSymbol: string): Promise<Quote> {
 
   try {
     const yahooChart = await fetchYahooChart(symbol);
-    if (yahooChart) return yahooChart;
+    if (yahooChart) {
+      const cap = await fetchYahooMarketCap(yahooChart.symbol).catch(() => null);
+      if (cap != null) {
+        return {
+          ...yahooChart,
+          marketCap: cap,
+          marketCapText: formatMarketCap(cap),
+        };
+      }
+      return yahooChart;
+    }
   } catch {
     // Try fallback provider below.
   }
 
   try {
     const stooq = await fetchStooq(symbol);
-    if (stooq) return stooq;
+    if (stooq) {
+      const cap = await fetchYahooMarketCap(stooq.symbol).catch(() => null);
+      if (cap != null) {
+        return {
+          ...stooq,
+          marketCap: cap,
+          marketCapText: formatMarketCap(cap),
+        };
+      }
+      return stooq;
+    }
   } catch {
     // Ignore and throw a single clear error below.
   }
 
   try {
     const stooqCsv = await fetchStooqCsv(symbol);
-    if (stooqCsv) return stooqCsv;
+    if (stooqCsv) {
+      const cap = await fetchYahooMarketCap(stooqCsv.symbol).catch(() => null);
+      if (cap != null) {
+        return {
+          ...stooqCsv,
+          marketCap: cap,
+          marketCapText: formatMarketCap(cap),
+        };
+      }
+      return stooqCsv;
+    }
   } catch {
     // Ignore and throw a single clear error below.
   }

@@ -27,9 +27,9 @@ export default function OverviewPage() {
     const d = (await r.json()) as { accounts: AccountWithH[] };
     setAccounts(d.accounts);
     setSelectedAccountId((current) =>
-      current && d.accounts.some((a) => a.id === current)
+      current === "__overview__" || (current && d.accounts.some((a) => a.id === current))
         ? current
-        : d.accounts[0]?.id ?? ""
+        : "__overview__"
     );
   }, []);
 
@@ -49,6 +49,7 @@ export default function OverviewPage() {
     () => accounts?.find((a) => a.id === selectedAccountId) ?? null,
     [accounts, selectedAccountId]
   );
+  const onOverview = selectedAccountId === "__overview__";
 
   const totalPortfolioValue = useMemo(
     () =>
@@ -66,6 +67,28 @@ export default function OverviewPage() {
       ) ?? 0,
     [selectedAccount]
   );
+
+  const mergedOverviewHoldings = useMemo(() => {
+    const map = new Map<string, Holding>();
+    for (const a of accounts ?? []) {
+      for (const h of a.holdings) {
+        const key = h.symbol.toUpperCase();
+        const existing = map.get(key);
+        if (!existing) {
+          map.set(key, { ...h, symbol: key });
+          continue;
+        }
+        map.set(key, {
+          ...existing,
+          shares: existing.shares + h.shares,
+          lastPrice: h.lastPrice ?? existing.lastPrice,
+          marketCap: h.marketCap ?? existing.marketCap,
+          marketCapText: h.marketCapText ?? existing.marketCapText,
+        });
+      }
+    }
+    return [...map.values()].sort((a, b) => (b.lastPrice ?? 0) * b.shares - (a.lastPrice ?? 0) * a.shares);
+  }, [accounts]);
 
   async function addAccount(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +223,23 @@ export default function OverviewPage() {
             )}
 
             <ul className="space-y-1.5">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAccountId("__overview__")}
+                  className={
+                    "w-full rounded-lg border px-3 py-2 text-left transition " +
+                    (onOverview
+                      ? "border-(--accent) bg-(--background) shadow-sm"
+                      : "border-(--card-border) hover:bg-(--background)")
+                  }
+                >
+                  <p className="text-sm font-medium">Overview</p>
+                  <p className="text-xs text-(--muted)">
+                    Combined symbols across all accounts
+                  </p>
+                </button>
+              </li>
               {accounts.length === 0 && (
                 <li className="rounded-md border border-dashed border-(--card-border) px-2 py-2 text-xs text-(--muted)">
                   Add your first account to begin.
@@ -232,88 +272,92 @@ export default function OverviewPage() {
                 );
               })}
             </ul>
-          </div>
-        </aside>
 
-        <section className="space-y-5">
-          <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-            <h2 className="text-lg font-semibold">Add holding</h2>
-            <p className="text-sm text-(--muted)">
-              Add shares to the selected account. Use "Refresh price" on each holding to fetch/update quote data.
-            </p>
-            <form
-              onSubmit={addHolding}
-              className="mt-3 grid gap-2 sm:grid-cols-[120px_140px_140px_auto]"
-            >
-              <div>
-                <label className="text-xs text-(--muted)">Selected account</label>
+            {!onOverview && (
+              <form
+                onSubmit={addHolding}
+                className="mt-4 space-y-2 rounded-lg border border-(--card-border) bg-(--background) p-2.5"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-(--muted)">
+                  Add holding
+                </p>
                 <input
                   value={selectedAccount?.name ?? "No account"}
                   disabled
-                  className="mt-1 w-full rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm"
+                  className="w-full rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm"
                 />
-              </div>
-              <div>
-                <label className="text-xs text-(--muted)">Symbol</label>
                 <input
-                  className="mt-1 w-full rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm font-mono uppercase"
+                  className="w-full rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm font-mono uppercase"
                   value={addSym}
                   onChange={(e) => setAddSym(e.target.value.toUpperCase())}
-                  placeholder="AAPL"
+                  placeholder="Symbol (AAPL)"
                   required
                 />
-              </div>
-              <div>
-                <label className="text-xs text-(--muted)">Shares</label>
                 <input
                   type="number"
                   min={0.0001}
                   step="any"
-                  className="mt-1 w-full rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm"
+                  className="w-full rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm"
                   value={addShares}
                   onChange={(e) => setAddShares(e.target.value)}
+                  placeholder="Shares"
                   required
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={!selectedAccount}
-                className="self-end rounded-md bg-(--accent) px-4 py-2 text-sm font-medium text-(--accent-foreground) disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Add holding
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={!selectedAccount}
+                  className="w-full rounded-md bg-(--accent) px-3 py-2 text-sm font-medium text-(--accent-foreground) disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Add holding
+                </button>
+              </form>
+            )}
           </div>
+        </aside>
 
+        <section className="space-y-5">
           <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
             <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
               <h3 className="text-sm font-medium text-(--muted)">
-                {selectedAccount ? `${selectedAccount.name} mix` : "Account mix"}
+                {onOverview
+                  ? "All accounts combined"
+                  : selectedAccount
+                  ? `${selectedAccount.name} mix`
+                  : "Account mix"}
               </h3>
               <p className="text-xl font-semibold">
-                {formatUsd(selectedAccountValue)}
+                {formatUsd(onOverview ? totalPortfolioValue : selectedAccountValue)}
               </p>
               <div className="mt-2">
-                <HoldingPie holdings={selectedAccount?.holdings ?? []} />
+                <HoldingPie
+                  holdings={onOverview ? mergedOverviewHoldings : selectedAccount?.holdings ?? []}
+                />
               </div>
             </div>
 
             <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">
-                  {selectedAccount ? `${selectedAccount.name} holdings` : "Holdings"}
+                  {onOverview
+                    ? "All holdings (combined by symbol)"
+                    : selectedAccount
+                    ? `${selectedAccount.name} holdings`
+                    : "Holdings"}
                 </h3>
                 <p className="text-sm text-(--muted)">
-                  {selectedAccount?.holdings.length ?? 0} line
-                  {(selectedAccount?.holdings.length ?? 0) === 1 ? "" : "s"}
+                  {onOverview
+                    ? `${mergedOverviewHoldings.length} line${mergedOverviewHoldings.length === 1 ? "" : "s"}`
+                    : `${selectedAccount?.holdings.length ?? 0} line${
+                        (selectedAccount?.holdings.length ?? 0) === 1 ? "" : "s"
+                      }`}
                 </p>
               </div>
               <div className="mt-3">
                 <HoldingsTable
-                  holdings={selectedAccount?.holdings ?? []}
-                  accountTotal={selectedAccountValue}
-                  onEditShares={editHolding}
-                  onRemove={removeHolding}
+                  holdings={onOverview ? mergedOverviewHoldings : selectedAccount?.holdings ?? []}
+                  accountTotal={onOverview ? totalPortfolioValue : selectedAccountValue}
+                  onEditShares={onOverview ? undefined : editHolding}
+                  onRemove={onOverview ? undefined : removeHolding}
                 />
               </div>
             </div>
