@@ -279,7 +279,7 @@ export default function OverviewPage() {
               className="mt-4 space-y-2 rounded-lg border border-(--card-border) bg-(--background) p-2.5"
             >
               <p className="text-xs font-medium uppercase tracking-wide text-(--muted)">
-                Add holding
+                Update holding
               </p>
               <input
                 value={selectedAccount?.name ?? "No account"}
@@ -300,7 +300,7 @@ export default function OverviewPage() {
                 className="w-full rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm"
                 value={addShares}
                 onChange={(e) => setAddShares(e.target.value)}
-                placeholder="Shares"
+                placeholder="Total shares"
                 required
               />
               <button
@@ -308,7 +308,7 @@ export default function OverviewPage() {
                 disabled={!selectedAccount}
                 className="w-full rounded-md bg-(--accent) px-3 py-2 text-sm font-medium text-(--accent-foreground) disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Add holding
+                Update
               </button>
             </form>
           )}

@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const existing = await prisma.holding.findFirst({ where: { accountId, symbol: sym } });
   if (existing) {
     const oldS = existing.shares;
-    const newS = oldS + shares;
+    const newS = shares;
     const h = await prisma.holding.update({
       where: { id: existing.id },
       data: { shares: newS },
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       acc.id,
       acc.name
     );
-    return NextResponse.json({ holding: h, merged: true });
+    return NextResponse.json({ holding: h, merged: true, mode: "set-total" });
   }
   const h = await prisma.holding.create({
     data: {
@@ -49,5 +49,5 @@ export async function POST(req: Request) {
     },
   });
   await recordHoldingPositionChange(s.userId, 0, shares, h.symbol, h.name, acc.id, acc.name);
-  return NextResponse.json({ holding: h, merged: false });
+  return NextResponse.json({ holding: h, merged: false, mode: "set-total" });
 }
