@@ -14,37 +14,49 @@ export async function recordHoldingPositionChange(
   accountId: string,
   accountName: string
 ) {
-  const delta = computePositionChange(oldShares, newShares);
-  if (!delta) return;
+  const globalAgg = await prisma.holding.aggregate({
+    where: { account: { userId }, symbol },
+    _sum: { shares: true },
+  });
+  const globalNew = globalAgg?._sum?.shares ?? 0;
+  const globalOld = globalNew - newShares + oldShares;
+  const globalDelta = computePositionChange(globalOld, globalNew);
+  const lineDelta = computePositionChange(oldShares, newShares);
+  if (!globalDelta && !lineDelta) return;
 
-  const { kind, pct } = delta;
-  const kindToStore = kind as ChangeKind;
-
-  await prisma.$transaction([
-    prisma.feedEvent.create({
-      data: {
-        userId,
-        symbol,
-        title,
-        kind: kindToStore,
-        pct,
-        oldShares,
-        newShares,
-        accountName,
-      },
-    }),
-    prisma.accountFeedEvent.create({
-      data: {
-        accountId,
-        symbol,
-        title,
-        kind: kindToStore,
-        pct,
-        oldShares,
-        newShares,
-      },
-    }),
-  ]);
+  const ops = [];
+  if (globalDelta) {
+    ops.push(
+      prisma.feedEvent.create({
+        data: {
+          userId,
+          symbol,
+          title,
+          kind: globalDelta.kind as ChangeKind,
+          pct: globalDelta.pct,
+          oldShares: globalOld,
+          newShares: globalNew,
+          accountName,
+        },
+      })
+    );
+  }
+  if (lineDelta) {
+    ops.push(
+      prisma.accountFeedEvent.create({
+        data: {
+          accountId,
+          symbol,
+          title,
+          kind: lineDelta.kind as ChangeKind,
+          pct: lineDelta.pct,
+          oldShares,
+          newShares,
+        },
+      })
+    );
+  }
+  if (ops.length) await prisma.$transaction(ops);
 }
 
 export async function deleteHoldingWithFeed(
@@ -58,37 +70,46 @@ export async function deleteHoldingWithFeed(
   },
   accountName: string
 ) {
-  const o = holding.shares;
-  const n = 0;
-  const delta = computePositionChange(o, n);
-  if (delta) {
-    await prisma.$transaction([
+  const globalAgg = await prisma.holding.aggregate({
+    where: { account: { userId }, symbol: holding.symbol },
+    _sum: { shares: true },
+  });
+  const globalOld = globalAgg._sum.shares ?? 0;
+  const globalNew = Math.max(0, globalOld - holding.shares);
+  const globalDelta = computePositionChange(globalOld, globalNew);
+  const lineDelta = computePositionChange(holding.shares, 0);
+  const ops = [];
+  if (globalDelta) {
+    ops.push(
       prisma.feedEvent.create({
         data: {
           userId,
           symbol: holding.symbol,
           title: holding.name,
-          kind: delta.kind,
-          pct: delta.pct,
-          oldShares: o,
-          newShares: n,
+          kind: globalDelta.kind,
+          pct: globalDelta.pct,
+          oldShares: globalOld,
+          newShares: globalNew,
           accountName,
         },
-      }),
+      })
+    );
+  }
+  if (lineDelta) {
+    ops.push(
       prisma.accountFeedEvent.create({
         data: {
           accountId: holding.accountId,
           symbol: holding.symbol,
           title: holding.name,
-          kind: delta.kind,
-          pct: delta.pct,
-          oldShares: o,
-          newShares: n,
+          kind: lineDelta.kind,
+          pct: lineDelta.pct,
+          oldShares: holding.shares,
+          newShares: 0,
         },
-      }),
-      prisma.holding.delete({ where: { id: holding.id } }),
-    ]);
-  } else {
-    await prisma.holding.delete({ where: { id: holding.id } });
+      })
+    );
   }
+  ops.push(prisma.holding.delete({ where: { id: holding.id } }));
+  await prisma.$transaction(ops);
 }

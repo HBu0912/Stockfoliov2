@@ -17,13 +17,35 @@ export function HoldingsTable({
   onEditShares?: (id: string, nextShares: number) => void;
   onRemove?: (id: string) => void;
 }) {
+  const [sortKey, setSortKey] = useState<"symbol" | "shares" | "price" | "value" | "pct">("value");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   if (holdings.length === 0) {
     return <p className="text-sm text-(--muted)">No holdings in this list yet.</p>;
   }
+  const sorted = [...holdings].sort((a, b) => {
+    const av = a.shares * (a.lastPrice ?? 0);
+    const bv = b.shares * (b.lastPrice ?? 0);
+    const ap = accountTotal > 0 ? (av / accountTotal) * 100 : 0;
+    const bp = accountTotal > 0 ? (bv / accountTotal) * 100 : 0;
+    let cmp = 0;
+    if (sortKey === "symbol") cmp = a.symbol.localeCompare(b.symbol);
+    if (sortKey === "shares") cmp = a.shares - b.shares;
+    if (sortKey === "price") cmp = (a.lastPrice ?? 0) - (b.lastPrice ?? 0);
+    if (sortKey === "value") cmp = av - bv;
+    if (sortKey === "pct") cmp = ap - bp;
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+  const sort = (k: typeof sortKey) =>
+    setSortKey((cur) => {
+      if (cur === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      else setSortDir("desc");
+      return k;
+    });
+  const icon = (k: typeof sortKey) => (sortKey === k ? (sortDir === "asc" ? "↑" : "↓") : "↕");
   return (
     <div className="space-y-2">
       <div className="space-y-2 md:hidden">
-        {holdings.map((h) => {
+        {sorted.map((h) => {
           const val = h.shares * (h.lastPrice ?? 0);
           const pct = accountTotal > 0 ? (val / accountTotal) * 100 : 0;
           return (
@@ -63,16 +85,16 @@ export function HoldingsTable({
         <table className="w-full text-left text-sm">
           <thead className="bg-(--card) text-(--muted)">
             <tr>
-              <th className="p-2 font-medium">Ticker</th>
-              <th className="p-2 text-right font-medium">Shares</th>
-              <th className="p-2 text-right font-medium">Last price</th>
-              <th className="p-2 text-right font-medium">Value</th>
-              <th className="p-2 text-right font-medium">% of Account</th>
+              <th className="p-2 font-medium"><button type="button" onClick={() => sort("symbol")}>Ticker {icon("symbol")}</button></th>
+              <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("shares")}>Shares {icon("shares")}</button></th>
+              <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("price")}>Last price {icon("price")}</button></th>
+              <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("value")}>Value {icon("value")}</button></th>
+              <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("pct")}>% of Account {icon("pct")}</button></th>
               {(onEditShares || onRemove) && <th className="p-2 w-40" />}
             </tr>
           </thead>
           <tbody>
-            {holdings.map((h) => {
+            {sorted.map((h) => {
               const val = h.shares * (h.lastPrice ?? 0);
               const pct = accountTotal > 0 ? (val / accountTotal) * 100 : 0;
               return (

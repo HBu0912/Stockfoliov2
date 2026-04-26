@@ -341,7 +341,7 @@ export default function OverviewPage() {
                 {viewFeed.length === 0 ? (
                   <p className="text-sm text-(--muted)">No activity yet.</p>
                 ) : (
-                  <ul className="space-y-2">
+                  <ul className="max-h-[380px] space-y-2 overflow-y-auto pr-1">
                     {viewFeed.map((e) => (
                       <li
                         key={e.id}
@@ -370,9 +370,9 @@ export default function OverviewPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">
                 {onOverview
-                  ? "All holdings (combined by ticker)"
+                  ? "Consolidated Overview"
                   : selectedAccount
-                  ? `${selectedAccount.name} holdings`
+                  ? `${selectedAccount.name} Holdings`
                   : "Holdings"}
               </h3>
               <p className="text-sm text-(--muted)">

@@ -115,8 +115,8 @@ export default function AccountDetailPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <div>
-          <h2 className="text-sm font-medium text-(--muted)">Top 5 by value (+ Other) — hover slices</h2>
-          <HoldingPie holdings={account.holdings} />
+          <h2 className="text-sm font-medium text-(--muted)">Allocation mix</h2>
+          <HoldingPie holdings={account.holdings} height={320} />
         </div>
         <div>
           <h2 className="text-sm font-medium text-(--muted)">Account value</h2>
@@ -146,7 +146,7 @@ export default function AccountDetailPage() {
         {globalFeed.length === 0 ? (
           <p className="text-(--muted) mt-2">No investing feed entries for this account yet.</p>
         ) : (
-          <ul className="mt-2 space-y-2">
+          <ul className="mt-2 max-h-[340px] space-y-2 overflow-y-auto pr-1">
             {globalFeed.map((e) => (
               <li key={e.id} className="rounded-lg border border-(--card-border) bg-(--card) px-3 py-2 text-sm text-foreground/90">
                 {formatPctChangeLine({
@@ -172,7 +172,7 @@ export default function AccountDetailPage() {
         {feed.length === 0 ? (
           <p className="text-(--muted) mt-2">No position changes here yet.</p>
         ) : (
-          <ul className="mt-2 space-y-2">
+          <ul className="mt-2 max-h-[340px] space-y-2 overflow-y-auto pr-1">
             {feed.map((e) => (
               <li key={e.id} className="rounded-lg border border-(--card-border) bg-(--card) px-3 py-2 text-sm text-foreground/90">
                 {formatPctChangeLine({

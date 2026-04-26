@@ -63,6 +63,9 @@ export default function ArenaDetailPage() {
   const [err, setErr] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [rename, setRename] = useState("");
+  const [memberSort, setMemberSort] = useState<"name" | "topPct">("name");
+  const [memberSortDir, setMemberSortDir] = useState<"asc" | "desc">("asc");
+  const [otherSortDir, setOtherSortDir] = useState<"asc" | "desc">("desc");
 
   const load = useCallback(async () => {
     setErr(null);
@@ -94,6 +97,26 @@ export default function ArenaDetailPage() {
     const total = new Set([...mine, ...theirs]).size || 1;
     return (common / total) * 100;
   }, [me, selected]);
+  const sortedMembers = useMemo(() => {
+    const list = [...(data?.portfolios ?? [])];
+    list.sort((a, b) => {
+      if (memberSort === "name") {
+        const an = (a.user.name || a.user.email).toLowerCase();
+        const bn = (b.user.name || b.user.email).toLowerCase();
+        return memberSortDir === "asc" ? an.localeCompare(bn) : bn.localeCompare(an);
+      }
+      const ap = a.rows[0]?.pct ?? 0;
+      const bp = b.rows[0]?.pct ?? 0;
+      return memberSortDir === "asc" ? ap - bp : bp - ap;
+    });
+    return list;
+  }, [data?.portfolios, memberSort, memberSortDir]);
+  const otherHoldings = useMemo(() => {
+    if (!selected) return [] as Row[];
+    return [...selected.rows].sort((a, b) =>
+      otherSortDir === "asc" ? a.label.localeCompare(b.label) : b.pct - a.pct
+    );
+  }, [selected, otherSortDir]);
   const diversification = useMemo(() => {
     if (!selected) return 0;
     const top5 = selected.rows.slice(0, 5).reduce((s, r) => s + r.pct, 0);
@@ -144,14 +167,27 @@ export default function ArenaDetailPage() {
         </div>
       )}
 
-      <section>
-        <h2 className="text-lg font-semibold">Members</h2>
-        <ul className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {data.portfolios.map((p) => {
+      <section className="grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-4 rounded-xl border border-(--card-border) bg-(--card) p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Members</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setMemberSort((s) => (s === "name" ? "topPct" : "name"));
+                setMemberSortDir((d) => (d === "asc" ? "desc" : "asc"));
+              }}
+              className="text-xs text-(--muted)"
+            >
+              Sort
+            </button>
+          </div>
+          <ul className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+            {sortedMembers.map((p) => {
             const who = p.user.name || p.user.email.split("@")[0];
             const active = p.user.id === selectedUserId;
             return (
-              <li key={p.user.id} className={"rounded-2xl border p-3 " + (active ? "border-(--accent) bg-(--card)" : "border-(--card-border) bg-(--card)")}>
+              <li key={p.user.id} className={"rounded-2xl border p-3 " + (active ? "border-(--accent) bg-(--background)" : "border-(--card-border) bg-(--card)")}>
                 <button type="button" onClick={() => setSelectedUserId(p.user.id)} className="w-full text-left">
                   <p className="font-medium">{who}</p>
                   <div className="mt-2 space-y-1 text-xs">
@@ -164,7 +200,32 @@ export default function ArenaDetailPage() {
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </div>
+        <div className="xl:col-span-8 rounded-xl border border-(--card-border) bg-(--card) p-3">
+          <h2 className="text-lg font-semibold">Leaderboard</h2>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-(--card-border) bg-(--background) p-3">
+              <p className="text-sm font-medium">Most diversified</p>
+              <p className="text-xs text-(--muted mt-1)">{sortedMembers.slice().sort((a,b)=>b.rows.length-a.rows.length)[0]?.user.name || sortedMembers.slice().sort((a,b)=>b.rows.length-a.rows.length)[0]?.user.email || "—"}</p>
+            </div>
+            <div className="rounded-lg border border-(--card-border) bg-(--background) p-3">
+              <p className="text-sm font-medium">Arena popular tickers (Top 5)</p>
+              <p className="mt-1 text-xs font-mono text-(--muted)">{Array.from(new Set(data.portfolios.flatMap((p)=>p.rows.slice(0,3).map((r)=>r.label)))).slice(0,5).join(", ") || "—"}</p>
+            </div>
+            <div className="rounded-lg border border-(--card-border) bg-(--background) p-3 md:col-span-2">
+              <p className="text-sm font-medium">Biggest outlier bet (10%+)</p>
+              <p className="mt-1 text-xs text-(--muted)">
+                {(() => {
+                  const all = data.portfolios.flatMap((p) => p.rows.filter((r) => r.pct >= 10).map((r) => ({ user: p.user, row: r })));
+                  if (!all.length) return "No strong outlier bets above 10% yet.";
+                  const pick = all.sort((a, b) => b.row.pct - a.row.pct)[0];
+                  return `${pick.user.name || pick.user.email.split("@")[0]}: ${pick.row.label} at ${pick.row.pct.toFixed(1)}%`;
+                })()}
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
       {selected && me && (
@@ -202,7 +263,7 @@ export default function ArenaDetailPage() {
                         oldShares: f.oldShares,
                         newShares: f.newShares,
                         at: f.createdAt,
-                        accountName: f.accountName,
+                        accountName: undefined,
                       })}
                     </div>
                   ))
@@ -234,6 +295,22 @@ export default function ArenaDetailPage() {
               </h4>
               <p className="mt-2 text-2xl font-semibold">{overlapScore.toFixed(0)}%</p>
             </div>
+          </div>
+          <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="font-medium">Their Holdings</h4>
+              <button type="button" onClick={() => setOtherSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="text-xs text-(--muted)">
+                {otherSortDir === "asc" ? "A-Z" : "Greatest %"}
+              </button>
+            </div>
+            <ul className="max-h-[280px] space-y-1 overflow-y-auto pr-1 text-sm">
+              {otherHoldings.slice(0, 50).map((r) => (
+                <li key={r.label} className="flex justify-between border-b border-(--card-border)/50 py-1">
+                  <span className="font-mono">{r.label}</span>
+                  <span>{r.pct.toFixed(1)}%</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
       )}
