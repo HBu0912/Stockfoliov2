@@ -184,7 +184,7 @@ export default function OverviewPage() {
     <div className="space-y-5">
       <div className="rounded-2xl border border-(--card-border) bg-(--card) px-5 py-4 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Stockfolio Dashboard</h1>
-        <p className="mt-1 text-sm text-(--muted)">Your all in one Personal Finance.</p>
+        <p className="mt-1 text-sm text-(--muted)">Track smart. Compare bold. Grow together.</p>
       </div>
 
       {err && (

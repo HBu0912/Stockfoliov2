@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -32,6 +33,11 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-full max-w-sm flex-col justify-center px-4 py-16">
+      <div className="mb-4 text-center">
+        <Link href="/" className="inline-flex">
+          <BrandMark size="lg" />
+        </Link>
+      </div>
       <h1 className="text-2xl font-semibold">Sign in</h1>
       <p className="mt-1 text-sm text-(--muted)">Passwords are hashed on the server; sessions use a signed cookie.</p>
       {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
@@ -70,6 +76,12 @@ export default function LoginPage() {
         No account?{" "}
         <Link href="/register" className="text-(--accent)">
           Create one
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-(--muted)">
+        New here?{" "}
+        <Link href="/features" className="text-(--accent)">
+          Explore features
         </Link>
       </p>
     </div>

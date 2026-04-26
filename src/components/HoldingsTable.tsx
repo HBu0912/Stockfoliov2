@@ -38,10 +38,13 @@ export function HoldingsTable({
           {holdings.map((h) => {
             const val = h.shares * (h.lastPrice ?? 0);
             const pct = accountTotal > 0 ? (val / accountTotal) * 100 : 0;
+            const capText =
+              h.marketCapText ??
+              (h.marketCap != null ? formatMarketCap(h.marketCap) : `Pos ${formatUsd(val)}`);
             return (
               <tr key={h.id} className="border-t border-(--card-border)">
                 <td className="p-2 font-mono font-medium">{h.symbol}</td>
-                <td className="p-2 text-right text-(--muted)">{h.marketCapText ?? formatMarketCap(h.marketCap)}</td>
+                <td className="p-2 text-right text-(--muted)">{capText}</td>
                 <td className="p-2 text-right font-mono">{formatNumber(h.shares, 4)}</td>
                 <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
                 <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
@@ -94,11 +97,14 @@ function EditShares({ id, current, onSave }: { id: string; current: number; onSa
       onSubmit={(e) => {
         e.preventDefault();
         const n = parseFloat(v);
-        if (!Number.isNaN(n) && n >= 0) onSave(id, n);
+        if (!Number.isNaN(n) && n > 0) onSave(id, n);
         setOpen(false);
       }}
     >
       <input
+        type="number"
+        min={0.0001}
+        step="any"
         className="w-20 rounded border border-(--card-border) bg-(--background) px-1 py-0.5 text-xs"
         value={v}
         onChange={(e) => setV(e.target.value)}

@@ -26,11 +26,13 @@ function valueOf(h: Pick<Holding, "shares" | "lastPrice">) {
 export function buildTop5Slices(
   holdings: (Pick<Holding, "id" | "symbol" | "name" | "shares" | "lastPrice"> & { [k: string]: unknown })[]
 ): { slices: Slice[]; total: number } {
-  const rows = holdings.map((h) => ({
-    label: h.symbol,
-    name: h.name,
-    value: valueOf(h),
-  }));
+  const rows = holdings
+    .map((h) => ({
+      label: h.symbol,
+      name: h.name,
+      value: valueOf(h),
+    }))
+    .filter((r) => r.value > 0);
   const total = rows.reduce((s, r) => s + r.value, 0);
   if (total <= 0) return { slices: [], total: 0 };
   const sorted = [...rows].sort((a, b) => b.value - a.value);

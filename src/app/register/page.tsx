@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -33,6 +34,11 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto flex min-h-full max-w-sm flex-col justify-center px-4 py-16">
+      <div className="mb-4 text-center">
+        <Link href="/" className="inline-flex">
+          <BrandMark size="lg" />
+        </Link>
+      </div>
       <h1 className="text-2xl font-semibold">Create account</h1>
       <p className="mt-1 text-sm text-(--muted)">At least 8 characters. Your password is never stored in plain text.</p>
       {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
@@ -81,6 +87,12 @@ export default function RegisterPage() {
         Already have an account?{" "}
         <Link href="/login" className="text-(--accent)">
           Sign in
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-(--muted)">
+        Want a tour first?{" "}
+        <Link href="/features" className="text-(--accent)">
+          View features
         </Link>
       </p>
     </div>

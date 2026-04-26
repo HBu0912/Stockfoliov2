@@ -31,25 +31,24 @@ export async function PATCH(req: Request, { params }: Ctx) {
       data: {
         name: q.name,
         lastPrice: q.price,
-        marketCap: q.marketCap,
-        marketCapText: q.marketCapText,
+        marketCap: q.marketCap ?? holding.shares * q.price,
+        marketCapText:
+          q.marketCapText ??
+          `$${(holding.shares * q.price).toLocaleString("en-US", {
+            maximumFractionDigits: 0,
+          })}`,
       },
     });
     return NextResponse.json({ holding: updated });
   }
-  if (typeof body.shares !== "number" || body.shares < 0) {
-    return NextResponse.json({ error: "shares (non-negative) required" }, { status: 400 });
+  if (typeof body.shares !== "number" || body.shares <= 0) {
+    return NextResponse.json(
+      { error: "shares must be greater than 0 (use Remove to fully exit)." },
+      { status: 400 }
+    );
   }
   const newShares = body.shares;
   const oldShares = holding.shares;
-  if (newShares === 0) {
-    await deleteHoldingWithFeed(
-      s.userId,
-      { id: holding.id, accountId: holding.accountId, symbol: holding.symbol, name: holding.name, shares: oldShares },
-      holding.account.name
-    );
-    return NextResponse.json({ holding: null, removed: true });
-  }
   const updated = await prisma.holding.update({
     where: { id },
     data: { shares: newShares },

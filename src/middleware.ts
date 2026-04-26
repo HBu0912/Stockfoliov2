@@ -18,5 +18,7 @@ export const config = {
     "/feed/:path*",
     "/arena",
     "/arena/:path*",
+    "/profile",
+    "/profile/:path*",
   ],
 };
