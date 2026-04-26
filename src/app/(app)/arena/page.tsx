@@ -62,7 +62,7 @@ export default function ArenaListPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Arenas</h1>
-      <p className="text-(--muted) text-sm">Compare your stockfolio with friends. Gain insights on how their investing evolves.</p>
+      <p className="text-(--muted) text-sm">Compare your stockfolio with friends. Gain insights on their investing strategies.</p>
       {err && <p className="text-sm text-red-600">{err}</p>}
 
       <div className="grid gap-4 md:grid-cols-2">

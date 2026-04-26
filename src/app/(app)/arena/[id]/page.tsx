@@ -211,7 +211,7 @@ export default function ArenaDetailPage() {
               <p className="mt-1 text-xs font-mono text-(--muted)">{Array.from(new Set(data.portfolios.flatMap((p)=>p.rows.slice(0,3).map((r)=>r.label)))).slice(0,5).join(", ") || "—"}</p>
             </div>
             <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 shadow-sm md:col-span-2">
-              <p className="text-sm font-medium">Outlier Bets (10%+)</p>
+              <p className="text-sm font-medium">Outlier Bets</p>
               <p className="mt-1 text-xs text-(--muted)">
                 {(() => {
                   const all = data.portfolios.flatMap((p) => p.rows.filter((r) => r.pct >= 10).map((r) => ({ user: p.user, row: r })));

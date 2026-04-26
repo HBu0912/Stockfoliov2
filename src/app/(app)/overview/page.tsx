@@ -77,10 +77,15 @@ export default function OverviewPage() {
         .reduce((sum, h) => sum + h.shares * (h.lastPrice ?? 0), 0),
     [accounts]
   );
-  const totalHoldingsCount = useMemo(
-    () => (accounts ?? []).flatMap((a) => a.holdings).length,
-    [accounts]
-  );
+  const totalHoldingsCount = useMemo(() => {
+    const set = new Set<string>();
+    for (const account of accounts ?? []) {
+      for (const holding of account.holdings) {
+        set.add(holding.symbol.toUpperCase());
+      }
+    }
+    return set.size;
+  }, [accounts]);
   const selectedAccountValue = useMemo(
     () =>
       selectedAccount?.holdings.reduce(
@@ -184,7 +189,7 @@ export default function OverviewPage() {
     <div className="space-y-5">
       <div className="rounded-2xl border border-(--card-border) bg-(--card) px-5 py-4 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Stockfolio Dashboard</h1>
-        <p className="mt-1 text-sm text-(--muted)">Track smart. Compare bold. Grow together.</p>
+        <p className="mt-1 text-sm text-(--muted)">Keep tabs on your full investment portfolio</p>
       </div>
 
       {err && (
