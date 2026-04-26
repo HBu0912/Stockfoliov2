@@ -21,7 +21,7 @@ function valueOf(h: Pick<Holding, "shares" | "lastPrice">) {
 }
 
 /**
- * Build slices for all holdings by $ value (no "Other" bucket).
+ * Build slices as top 12 holdings by value plus "Other".
  */
 export function buildTop5Slices(
   holdings: (Pick<Holding, "id" | "symbol" | "name" | "shares" | "lastPrice"> & { [k: string]: unknown })[]
@@ -36,7 +36,12 @@ export function buildTop5Slices(
   const total = rows.reduce((s, r) => s + r.value, 0);
   if (total <= 0) return { slices: [], total: 0 };
   const sorted = [...rows].sort((a, b) => b.value - a.value);
-  const withOther = sorted;
+  const top12 = sorted.slice(0, 12);
+  const otherVal = sorted.slice(12).reduce((s, r) => s + r.value, 0);
+  const withOther = [...top12];
+  if (otherVal > 0) {
+    withOther.push({ label: "Other", name: "Other", value: otherVal });
+  }
   return {
     total,
     slices: withOther.map((r, i) => ({

@@ -18,6 +18,11 @@ export function HoldingPie({
 }) {
   const { slices, total } = useMemo(() => buildTop5Slices(holdings), [holdings]);
   const [, setActive] = useState<{ name: string; value: string } | null>(null);
+  const legendRows = useMemo(() => {
+    const other = slices.find((s) => s.label === "Other");
+    const top5 = slices.filter((s) => s.label !== "Other").slice(0, 5);
+    return other ? [...top5, other] : top5;
+  }, [slices]);
 
   if (slices.length === 0) {
     return <p className="text-sm text-(--muted)">No value yet — add holdings with live prices to see a chart.</p>;
@@ -69,7 +74,7 @@ export function HoldingPie({
         </PieChart>
       </ResponsiveContainer>
       <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-        {slices.map((s) => (
+        {legendRows.map((s) => (
           <div key={s.label} className="flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-(--muted)">
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
