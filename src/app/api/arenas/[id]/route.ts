@@ -44,5 +44,51 @@ export async function GET(_req: Request, { params }: Ctx) {
       rows,
     };
   });
-  return NextResponse.json({ arena: { id: arena.id, name: arena.name, joinCode: arena.joinCode }, portfolios });
+  const feeds = await prisma.feedEvent.findMany({
+    where: { userId: { in: userIds } },
+    orderBy: { createdAt: "desc" },
+    take: 120,
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+  return NextResponse.json({
+    arena: {
+      id: arena.id,
+      name: arena.name,
+      joinCode: arena.joinCode,
+      createdById: arena.createdById,
+      meId: s.userId,
+      isCreator: arena.createdById === s.userId,
+    },
+    portfolios,
+    feeds,
+  });
+}
+
+export async function PATCH(req: Request, { params }: Ctx) {
+  const s = await getSession();
+  if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const arena = await prisma.arena.findUnique({ where: { id } });
+  if (!arena) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (arena.createdById !== s.userId) {
+    return NextResponse.json({ error: "Only the creator can rename this arena" }, { status: 403 });
+  }
+  const body = (await req.json()) as { name?: string };
+  const name = (body.name ?? "").trim();
+  if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  const updated = await prisma.arena.update({ where: { id }, data: { name } });
+  return NextResponse.json({ arena: updated });
+}
+
+export async function DELETE(_req: Request, { params }: Ctx) {
+  const s = await getSession();
+  if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const arena = await prisma.arena.findUnique({ where: { id } });
+  if (!arena) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (arena.createdById !== s.userId) {
+    return NextResponse.json({ error: "Only the creator can delete this arena" }, { status: 403 });
+  }
+  await prisma.arena.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

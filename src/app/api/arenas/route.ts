@@ -14,10 +14,16 @@ export async function GET() {
   if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const memberships = await prisma.arenaMember.findMany({
     where: { userId: s.userId },
-    include: { arena: true },
+    include: { arena: { include: { _count: { select: { members: true } } } } },
     orderBy: { joinedAt: "desc" },
   });
-  return NextResponse.json({ arenas: memberships.map((m) => m.arena) });
+  return NextResponse.json({
+    arenas: memberships.map((m) => ({
+      ...m.arena,
+      memberCount: m.arena._count.members,
+      isCreator: m.arena.createdById === s.userId,
+    })),
+  });
 }
 
 export async function POST(req: Request) {

@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Arena } from "@/generated/prisma";
 
+type ArenaRow = Arena & { memberCount: number; isCreator: boolean };
+
 export default function ArenaListPage() {
-  const [arenas, setArenas] = useState<Arena[]>([]);
+  const [arenas, setArenas] = useState<ArenaRow[]>([]);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -19,7 +21,7 @@ export default function ArenaListPage() {
       setErr("Could not load arenas");
       return;
     }
-    const d = (await r.json()) as { arenas: Arena[] };
+    const d = (await r.json()) as { arenas: ArenaRow[] };
     setArenas(d.arenas);
   }, []);
 
@@ -60,7 +62,7 @@ export default function ArenaListPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Arenas</h1>
-      <p className="text-(--muted) text-sm">Create a room or join with a code. See everyone&rsquo;s combined portfolio mix (% of total across all their named accounts) — your feed and account-only charts stay on those pages, not here.</p>
+      <p className="text-(--muted) text-sm">Compare your stockfolio with friends. Gain insights on how their investing evolves.</p>
       {err && <p className="text-sm text-red-600">{err}</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -91,17 +93,23 @@ export default function ArenaListPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-medium">Yours</h2>
+        <h2 className="text-lg font-medium">Your arenas</h2>
         {arenas.length === 0 ? (
           <p className="text-(--muted) text-sm">You haven&rsquo;t joined any arenas yet.</p>
         ) : (
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {arenas.map((a) => (
-              <li key={a.id}>
-                <Link href={`/arena/${a.id}`} className="text-(--accent) hover:underline">
+              <li key={a.id} className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+                <Link href={`/arena/${a.id}`} className="text-lg font-semibold text-(--accent) hover:underline">
                   {a.name}
                 </Link>
-                <span className="text-(--muted) text-sm"> · code {a.joinCode}</span>
+                <p className="mt-1 text-sm text-(--muted)">
+                  {a.memberCount} member{a.memberCount === 1 ? "" : "s"} · code{" "}
+                  <span className="font-mono">{a.joinCode}</span>
+                </p>
+                {a.isCreator && (
+                  <p className="mt-1 text-xs font-medium text-(--accent)">You are the creator</p>
+                )}
               </li>
             ))}
           </ul>

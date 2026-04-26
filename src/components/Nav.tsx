@@ -47,8 +47,13 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-(--card-border) bg-(--background)/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3">
-        <Link href="/overview" className="text-lg font-semibold tracking-tight text-(--accent)">
-          Portfolio
+        <Link href="/overview" className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight text-(--accent)">
+          <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none" aria-hidden>
+            <path d="M3 21L9 15L13 18L20 9L24 14L29 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M3 27H29" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="29" cy="8" r="2.2" fill="currentColor" />
+          </svg>
+          Stockfolio
         </Link>
         <nav className="flex flex-wrap items-center gap-1 text-sm">
           <button

@@ -25,12 +25,12 @@ export function HoldingsTable({
       <table className="w-full min-w-[560px] text-left text-sm">
         <thead className="bg-(--card) text-(--muted)">
           <tr>
-            <th className="p-2 font-medium">Symbol</th>
+            <th className="p-2 font-medium">Ticker</th>
             <th className="p-2 text-right font-medium">Market cap</th>
             <th className="p-2 text-right font-medium">Shares</th>
             <th className="p-2 text-right font-medium">Last price</th>
             <th className="p-2 text-right font-medium">Value</th>
-            <th className="p-2 text-right font-medium">% of this account</th>
+            <th className="p-2 text-right font-medium">% of Account</th>
             {(onEditShares || onRemove) && <th className="p-2 w-40" />}
           </tr>
         </thead>

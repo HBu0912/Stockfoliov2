@@ -9,7 +9,7 @@ type H = Pick<Holding, "id" | "symbol" | "name" | "shares" | "lastPrice">;
 
 export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?: number }) {
   const { slices, total } = useMemo(() => buildTop5Slices(holdings), [holdings]);
-  const [active, setActive] = useState<{ name: string; value: string } | null>(null);
+  const [, setActive] = useState<{ name: string; value: string } | null>(null);
 
   if (slices.length === 0) {
     return <p className="text-sm text-(--muted)">No value yet — add holdings with live prices to see a chart.</p>;
@@ -17,12 +17,7 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
 
   const data = slices.map((s) => ({ name: s.label, value: s.value, fill: s.color, pct: s.pct }));
   return (
-    <div style={{ minHeight: height + 80 }} className="w-full max-w-sm">
-      <p className="text-xs text-(--muted) mb-1">
-        Top {slices.length <= 5 ? slices.length : 5} + {slices.some((s) => s.label === "Other") ? "Other" : "holdings"}{" "}
-        (hover slices)
-        {active && <span className="ml-2 text-foreground font-medium">— {active.name}: {active.value}</span>}
-      </p>
+    <div style={{ minHeight: height + 56 }} className="w-full max-w-none">
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Tooltip
@@ -32,12 +27,7 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
               return (
                 <div className="rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm shadow">
                   <div className="font-medium">{p.name}</div>
-                  <div>
-                    {p.pct.toFixed(1)}% of account
-                    {total > 0 && (
-                      <span className="text-(--muted)"> — ${(p.value as number).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
-                    )}
-                  </div>
+                  <div>{p.pct.toFixed(1)}% of account</div>
                 </div>
               );
             }}
@@ -50,12 +40,13 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
             innerRadius="42%"
             outerRadius="80%"
             paddingAngle={2}
+            animationDuration={350}
             onMouseEnter={(_, idx) => {
               const d = data[idx];
               if (d)
                 setActive({
                   name: d.name,
-                  value: `${d.pct.toFixed(1)}% ($${(d as { value: number }).value.toLocaleString("en-US", { maximumFractionDigits: 0 })})`,
+                  value: `${d.pct.toFixed(1)}%`,
                 });
             }}
             onMouseLeave={() => setActive(null)}
