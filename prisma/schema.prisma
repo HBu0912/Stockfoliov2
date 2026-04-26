@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts     Account[]
+  feedEvents   FeedEvent[]
+  arenaCreated Arena[]        @relation("ArenaCreator")
+  arenaMembers ArenaMember[]
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  holdings Holding[]
+  feed     AccountFeedEvent[]
+
+  @@index([userId])
+}
+
+model Holding {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  symbol   String
+  name     String
+  shares   Float
+  lastPrice  Float? // per share, used for value
+  marketCap  Float? // company market cap in USD
+  marketCapText String? // e.g. "1.2T" from quote
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId])
+  @@index([accountId, symbol])
+}
+
+/// Site-wide event stream: position changes (one row per user holding transaction)
+model FeedEvent {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  symbol   String
+  title    String
+  /// NEW | INCREASE | REDUCE | CLOSE
+  kind     String
+  /// Position-relative 0–100% for this line only
+  pct      Float
+  oldShares Float
+  newShares Float
+  accountName String? // for context: which account, optional
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+/// Per-account feed; same % semantics, not shown in arena
+model AccountFeedEvent {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  symbol   String
+  title    String
+  kind     String
+  pct      Float
+  oldShares Float
+  newShares Float
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([createdAt])
+}
+
+model Arena {
+  id          String   @id @default(cuid())
+  name        String
+  joinCode    String   @unique
+  createdById String
+  createdBy   User     @relation("ArenaCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  members ArenaMember[]
+
+  @@index([joinCode])
+}
+
+model ArenaMember {
+  id        String   @id @default(cuid())
+  arenaId   String
+  userId    String
+  joinedAt  DateTime @default(now())
+  arena     Arena    @relation(fields: [arenaId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([arenaId, userId])
+  @@index([userId])
+}
