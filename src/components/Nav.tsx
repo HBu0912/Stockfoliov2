@@ -20,8 +20,8 @@ export function Nav() {
   }
 
   return (
-    <header className="border-b border-(--card-border) bg-(--background)">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+    <header className="sticky top-0 z-20 border-b border-(--card-border) bg-(--background)/90 backdrop-blur-md">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3">
         <Link href="/overview" className="text-lg font-semibold tracking-tight text-(--accent)">
           Portfolio
         </Link>
@@ -34,7 +34,9 @@ export function Nav() {
                 href={l.href}
                 className={
                   "rounded-md px-3 py-1.5 transition-colors " +
-                  (on ? "bg-(--card) font-medium" : "text-(--muted) hover:text-foreground")
+                  (on
+                    ? "bg-(--card) font-medium text-foreground shadow-sm"
+                    : "text-(--muted) hover:bg-(--card) hover:text-foreground")
                 }
               >
                 {l.label}

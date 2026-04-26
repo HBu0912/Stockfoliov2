@@ -19,7 +19,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (body.refresh) {
-    const q = await fetchQuote(holding.symbol);
+    let q;
+    try {
+      q = await fetchQuote(holding.symbol);
+    } catch (e) {
+      const m = e instanceof Error ? e.message : "Could not refresh quote";
+      return NextResponse.json({ error: m }, { status: 400 });
+    }
     const updated = await prisma.holding.update({
       where: { id },
       data: {
@@ -44,7 +50,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
     );
     return NextResponse.json({ holding: null, removed: true });
   }
-  const q = await fetchQuote(holding.symbol);
+  let q;
+  try {
+    q = await fetchQuote(holding.symbol);
+  } catch (e) {
+    const m = e instanceof Error ? e.message : "Could not refresh quote";
+    return NextResponse.json({ error: m }, { status: 400 });
+  }
   const updated = await prisma.holding.update({
     where: { id },
     data: { shares: newShares, name: q.name, lastPrice: q.price, marketCap: q.marketCap, marketCapText: q.marketCapText },
