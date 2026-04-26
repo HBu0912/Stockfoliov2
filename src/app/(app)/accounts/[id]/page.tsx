@@ -36,6 +36,14 @@ export default function AccountDetailPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const fn = () => {
+      void load();
+    };
+    window.addEventListener("prices-refreshed", fn);
+    return () => window.removeEventListener("prices-refreshed", fn);
+  }, [load]);
+
   const total = account ? account.holdings.reduce((s, h) => s + h.shares * (h.lastPrice ?? 0), 0) : 0;
 
   async function editHolding(holdingId: string, nextShares: number) {
@@ -57,19 +65,6 @@ export default function AccountDetailPage() {
     const r = await fetch(`/api/holdings/${holdingId}`, { method: "DELETE" });
     if (!r.ok) {
       setErr("Could not remove");
-      return;
-    }
-    await load();
-  }
-
-  async function refreshPrice(holdingId: string) {
-    const r = await fetch(`/api/holdings/${holdingId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh: true }),
-    });
-    if (!r.ok) {
-      setErr("Could not refresh");
       return;
     }
     await load();
@@ -121,7 +116,6 @@ export default function AccountDetailPage() {
             accountTotal={total}
             onEditShares={editHolding}
             onRemove={removeHolding}
-            onRefresh={refreshPrice}
           />
         </div>
       </section>

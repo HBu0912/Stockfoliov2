@@ -37,6 +37,14 @@ export default function OverviewPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const fn = () => {
+      void load();
+    };
+    window.addEventListener("prices-refreshed", fn);
+    return () => window.removeEventListener("prices-refreshed", fn);
+  }, [load]);
+
   const selectedAccount = useMemo(
     () => accounts?.find((a) => a.id === selectedAccountId) ?? null,
     [accounts, selectedAccountId]
@@ -125,20 +133,6 @@ export default function OverviewPage() {
     const r = await fetch(`/api/holdings/${id}`, { method: "DELETE" });
     if (!r.ok) {
       setErr("Could not remove");
-      return;
-    }
-    await load();
-  }
-
-  async function refreshPrice(id: string) {
-    const r = await fetch(`/api/holdings/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh: true }),
-    });
-    const d = (await r.json().catch(() => ({}))) as { error?: string };
-    if (!r.ok) {
-      setErr(d.error ?? "Could not refresh quote");
       return;
     }
     await load();
@@ -320,7 +314,6 @@ export default function OverviewPage() {
                   accountTotal={selectedAccountValue}
                   onEditShares={editHolding}
                   onRemove={removeHolding}
-                  onRefresh={refreshPrice}
                 />
               </div>
             </div>

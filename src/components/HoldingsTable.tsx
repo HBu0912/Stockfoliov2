@@ -11,13 +11,11 @@ export function HoldingsTable({
   accountTotal,
   onEditShares,
   onRemove,
-  onRefresh,
 }: {
   holdings: H[];
   accountTotal: number;
   onEditShares?: (id: string, nextShares: number) => void;
   onRemove?: (id: string) => void;
-  onRefresh?: (id: string) => void;
 }) {
   if (holdings.length === 0) {
     return <p className="text-sm text-(--muted)">No holdings in this list yet.</p>;
@@ -52,18 +50,9 @@ export function HoldingsTable({
                 <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
                 <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
                 <td className="p-2 text-right">{accountTotal > 0 ? `${pct.toFixed(1)}%` : "—"}</td>
-                {(onEditShares || onRemove || onRefresh) && (
+                {(onEditShares || onRemove) && (
                   <td className="p-2">
                     <div className="flex flex-wrap items-center justify-end gap-1">
-                      {onRefresh && (
-                        <button
-                          type="button"
-                          onClick={() => onRefresh(h.id)}
-                          className="rounded border border-(--card-border) px-2 py-0.5 text-xs hover:bg-(--card)"
-                        >
-                          Refresh price
-                        </button>
-                      )}
                       {onEditShares && <EditShares id={h.id} current={h.shares} onSave={onEditShares} />}
                       {onRemove && (
                         <button
