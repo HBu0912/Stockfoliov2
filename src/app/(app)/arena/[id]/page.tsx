@@ -36,11 +36,11 @@ type D = {
 };
 
 function toPieHoldings(rows: Row[]) {
-  return rows.slice(0, 8).map((r) => ({
+  return rows.map((r) => ({
     id: r.label,
     symbol: r.label,
     name: r.name,
-    shares: r.pct,
+    shares: r.value,
     lastPrice: 1,
   })) as unknown as Pick<Holding, "id" | "symbol" | "name" | "shares" | "lastPrice">[];
 }
@@ -190,9 +190,6 @@ export default function ArenaDetailPage() {
               <li key={p.user.id} className={"rounded-2xl border p-3 " + (active ? "border-(--accent) bg-(--background)" : "border-(--card-border) bg-(--card)")}>
                 <button type="button" onClick={() => setSelectedUserId(p.user.id)} className="w-full text-left">
                   <p className="font-medium">{who}</p>
-                  <div className="mt-2 space-y-1 text-xs">
-                    {p.rows.slice(0, 5).map((r) => <div key={r.label} className="flex justify-between"><span className="font-mono">{r.label}</span><span>{r.pct.toFixed(1)}%</span></div>)}
-                  </div>
                 </button>
                 {data.arena.isCreator && p.user.id !== data.arena.meId && (
                   <button type="button" onClick={() => void removeMember(p.user.id)} className="mt-2 rounded border border-red-500/35 px-2 py-1 text-xs text-red-500">Remove user</button>
@@ -205,16 +202,16 @@ export default function ArenaDetailPage() {
         <div className="xl:col-span-8 rounded-xl border border-(--card-border) bg-(--card) p-3">
           <h2 className="text-lg font-semibold">Leaderboard</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div className="rounded-lg border border-(--card-border) bg-(--background) p-3">
+            <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 shadow-sm">
               <p className="text-sm font-medium">Most diversified</p>
               <p className="text-xs text-(--muted mt-1)">{sortedMembers.slice().sort((a,b)=>b.rows.length-a.rows.length)[0]?.user.name || sortedMembers.slice().sort((a,b)=>b.rows.length-a.rows.length)[0]?.user.email || "—"}</p>
             </div>
-            <div className="rounded-lg border border-(--card-border) bg-(--background) p-3">
-              <p className="text-sm font-medium">Arena popular tickers (Top 5)</p>
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 shadow-sm">
+              <p className="text-sm font-medium">{data.arena.name} Top Picks</p>
               <p className="mt-1 text-xs font-mono text-(--muted)">{Array.from(new Set(data.portfolios.flatMap((p)=>p.rows.slice(0,3).map((r)=>r.label)))).slice(0,5).join(", ") || "—"}</p>
             </div>
-            <div className="rounded-lg border border-(--card-border) bg-(--background) p-3 md:col-span-2">
-              <p className="text-sm font-medium">Biggest outlier bet (10%+)</p>
+            <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 shadow-sm md:col-span-2">
+              <p className="text-sm font-medium">Outlier Bets (10%+)</p>
               <p className="mt-1 text-xs text-(--muted)">
                 {(() => {
                   const all = data.portfolios.flatMap((p) => p.rows.filter((r) => r.pct >= 10).map((r) => ({ user: p.user, row: r })));

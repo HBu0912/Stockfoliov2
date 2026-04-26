@@ -53,6 +53,7 @@ export function HoldingPie({
               );
             }}
             trigger="hover"
+            isAnimationActive={false}
           />
           <Pie
             data={data}

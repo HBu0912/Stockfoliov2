@@ -244,6 +244,7 @@ export default function OverviewPage() {
                   Total across all accounts · {totalHoldingsCount} holdings
                 </p>
               </button>
+                <div className="mx-1 mt-2 border-b border-(--card-border)/70" />
             </li>
             {accounts.map((account) => {
               const subtotal = account.holdings.reduce(
