@@ -7,7 +7,15 @@ import { Cell, Pie, PieChart, Tooltip, ResponsiveContainer } from "recharts";
 
 type H = Pick<Holding, "id" | "symbol" | "name" | "shares" | "lastPrice">;
 
-export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?: number }) {
+export function HoldingPie({
+  holdings,
+  height = 220,
+  showDollar = true,
+}: {
+  holdings: H[];
+  height?: number;
+  showDollar?: boolean;
+}) {
   const { slices, total } = useMemo(() => buildTop5Slices(holdings), [holdings]);
   const [, setActive] = useState<{ name: string; value: string } | null>(null);
 
@@ -27,7 +35,15 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
               return (
                 <div className="rounded-md border border-(--card-border) bg-(--background) px-2 py-1.5 text-sm shadow">
                   <div className="font-medium">{p.name}</div>
-                  <div>{p.pct.toFixed(1)}% of account</div>
+                  <div>
+                    {p.pct.toFixed(1)}% of account
+                    {showDollar ? (
+                      <span className="text-(--muted)">
+                        {" "}
+                        - ${(p.value as number).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               );
             }}
@@ -41,15 +57,7 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
             outerRadius="80%"
             paddingAngle={2}
             animationDuration={350}
-            onMouseEnter={(_, idx) => {
-              const d = data[idx];
-              if (d)
-                setActive({
-                  name: d.name,
-                  value: `${d.pct.toFixed(1)}%`,
-                });
-            }}
-            onMouseLeave={() => setActive(null)}
+            onMouseEnter={() => setActive(null)}
             stroke="var(--background)"
             strokeWidth={1}
             cornerRadius={4}
@@ -67,7 +75,14 @@ export function HoldingPie({ holdings, height = 220 }: { holdings: H[]; height?:
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
               {s.label}
             </span>
-            <span className="font-medium text-foreground">{s.pct.toFixed(1)}%</span>
+            <span className="font-medium text-foreground">
+              {s.pct.toFixed(1)}%
+              {showDollar ? (
+                <span className="ml-1 text-(--muted)">
+                  (${s.value.toLocaleString("en-US", { maximumFractionDigits: 0 })})
+                </span>
+              ) : null}
+            </span>
           </div>
         ))}
       </div>

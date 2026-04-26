@@ -56,13 +56,16 @@ export function Nav() {
           Stockfolio
         </Link>
         <nav className="flex flex-wrap items-center gap-1 text-sm">
+          {refreshText && (
+            <span className="mr-1 text-xs text-(--muted)">Prices Updated: {refreshText}</span>
+          )}
           <button
             type="button"
             onClick={() => void refreshAllPrices()}
             disabled={refreshingPrices}
             className="rounded-md border border-(--card-border) px-3 py-1.5 text-(--muted) hover:bg-(--card) hover:text-foreground disabled:opacity-60"
           >
-            {refreshingPrices ? "Refreshing..." : "Refresh prices"}
+            {refreshingPrices ? "Refreshing..." : "Refresh"}
           </button>
           {links.map((l) => {
             const on = pathname === l.href || pathname.startsWith(l.href + "/");
@@ -81,9 +84,6 @@ export function Nav() {
               </Link>
             );
           })}
-          {refreshText && (
-            <span className="ml-2 text-xs text-(--muted)">{refreshText}</span>
-          )}
           <button
             type="button"
             onClick={() => void logout()}
