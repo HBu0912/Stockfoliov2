@@ -69,6 +69,81 @@ export default async function Home() {
           </p>
         </section>
       </div>
+
+      <div className="mt-10">
+        <h2 className="text-center text-2xl font-semibold tracking-tight">Preview the experience</h2>
+        <p className="mx-auto mt-2 max-w-3xl text-center text-sm text-(--muted)">
+          Example demo data only. Names and allocations below are placeholders.
+        </p>
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-(--muted)">Overview</h3>
+          <div className="mt-3 rounded-xl border border-(--card-border) bg-(--background) p-3">
+            <div className="flex items-center justify-between text-xs text-(--muted)">
+              <span>Consolidated Portfolio</span>
+              <span>$98,420</span>
+            </div>
+            <div className="mt-3 h-28 rounded-full border-[14px] border-sky-400/80 border-r-emerald-400/80 border-b-violet-400/80 border-l-amber-400/80" />
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-lg border border-(--card-border) px-2 py-1">TECHX 24%</div>
+              <div className="rounded-lg border border-(--card-border) px-2 py-1">CORE 19%</div>
+              <div className="rounded-lg border border-(--card-border) px-2 py-1">GREEN 15%</div>
+              <div className="rounded-lg border border-(--card-border) px-2 py-1">Other 42%</div>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-(--muted)">
+            Track every account in one place with portfolio mix + live value updates.
+          </p>
+        </section>
+
+        <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-(--muted)">Arenas</h3>
+          <div className="mt-3 rounded-xl border border-(--card-border) bg-(--background) p-3">
+            <p className="text-xs font-medium">Compare with Taylor</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-(--card-border) p-2">
+                <p className="text-[11px] text-(--muted)">Your mix</p>
+                <div className="mt-2 h-16 rounded-full border-[10px] border-cyan-400/80 border-r-indigo-400/80 border-b-emerald-400/80 border-l-pink-400/80" />
+              </div>
+              <div className="rounded-lg border border-(--card-border) p-2">
+                <p className="text-[11px] text-(--muted)">Taylor mix</p>
+                <div className="mt-2 h-16 rounded-full border-[10px] border-orange-400/80 border-r-sky-400/80 border-b-lime-400/80 border-l-violet-400/80" />
+              </div>
+            </div>
+            <div className="mt-3 rounded-lg border border-(--card-border) px-2 py-1.5 text-xs">
+              Top overlap: TECHX, SAFE, MKT
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-(--muted)">
+            Side-by-side arena view helps compare two portfolios instantly.
+          </p>
+        </section>
+
+        <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-(--muted)">
+            Stock Comparison
+          </h3>
+          <div className="mt-3 space-y-2 rounded-xl border border-(--card-border) bg-(--background) p-3">
+            <div className="rounded-full border border-(--card-border) px-3 py-1.5 text-xs font-medium">
+              Metric Bubble: Forward P/E
+            </div>
+            <div className="rounded-xl border border-(--card-border) px-3 py-2 text-xs">
+              TECHX: 20.4
+            </div>
+            <div className="rounded-xl border border-(--card-border) px-3 py-2 text-xs">
+              CORE: 23.1
+            </div>
+            <div className="rounded-xl border border-(--card-border) px-3 py-2 text-xs">
+              SAFE: 18.7
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-(--muted)">
+            Add 2-3 tickers and compare each metric in clean bubble cards.
+          </p>
+        </section>
+      </div>
     </div>
   );
 }
