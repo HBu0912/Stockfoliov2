@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
+import { TickerSymbol } from "@/components/TickerSymbol";
 
 type ComparedStock = {
   symbol: string;
@@ -250,66 +251,69 @@ export default function StockComparisonPage() {
             Add 2-3 symbols, then click Compare Stocks.
           </div>
         ) : (
-          <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full table-fixed border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className="w-[170px] whitespace-nowrap border border-(--card-border) bg-(--background) px-3 py-2 text-center font-semibold">
-                      Metrics
-                    </th>
-                    {stocks.map((stock) => (
-                      <th
-                        key={`head-${stock.symbol}`}
-                        className="border border-(--card-border) bg-(--background) px-3 py-2 text-center"
-                      >
-                        <p className="text-sm font-semibold">{stock.symbol}</p>
-                        <p className="truncate text-xs text-(--muted)">{stock.name}</p>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {metricConfigs.map((metric) => (
-                    <tr key={`row-${metric.key}`}>
-                      <td className="w-[170px] whitespace-nowrap border border-(--card-border) bg-(--background) px-3 py-2 text-center font-medium">
-                        <span className="inline-flex items-center gap-1">
-                          {metric.label}
-                          <span className="group relative inline-flex">
-                            <button
-                              type="button"
-                              className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
-                              aria-label={`${metric.label} description`}
-                            >
-                              i
-                            </button>
-                            <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 w-56 -translate-x-1/2 rounded-md border border-(--card-border) bg-(--background) px-2 py-1 text-left text-xs font-normal text-(--muted) opacity-0 shadow group-hover:opacity-100">
-                              {metric.description}
-                            </span>
-                          </span>
+          <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
+            <div
+              className="grid gap-1.5"
+              style={{ gridTemplateColumns: `minmax(160px,0.8fr) repeat(${stocks.length}, minmax(0,1fr))` }}
+            >
+              <div className="rounded-xl border border-(--card-border) bg-(--background) px-2.5 py-2 text-center text-sm font-semibold">
+                Metrics
+              </div>
+              {stocks.map((stock) => (
+                <div
+                  key={`head-${stock.symbol}`}
+                  className="rounded-xl border border-(--card-border) bg-(--background) px-2.5 py-2 text-center"
+                >
+                  <p className="text-sm font-semibold leading-tight">
+                    <TickerSymbol symbol={stock.symbol} className="underline-offset-2 hover:underline" />
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] font-normal leading-tight text-(--muted)">
+                    {stock.name}
+                  </p>
+                </div>
+              ))}
+
+              {metricConfigs.map((metric) => (
+                <div
+                  key={`metric-${metric.key}`}
+                  className="contents"
+                >
+                  <div className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-1.5 text-center text-sm font-medium">
+                    <span className="inline-flex items-center gap-1">
+                      {metric.label}
+                      <span className="group relative inline-flex">
+                        <button
+                          type="button"
+                          className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
+                          aria-label={`${metric.label} description`}
+                        >
+                          i
+                        </button>
+                        <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 w-48 -translate-x-1/2 rounded-md border border-(--card-border) bg-(--background) px-2 py-1 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
+                          {metric.description}
                         </span>
-                      </td>
-                      {stocks.map((stock) => {
-                        const value = stock[metric.key] as number | null;
-                        const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
-                        return (
-                          <td
-                            key={`${metric.key}-${stock.symbol}`}
-                            className={
-                              "border px-3 py-2 text-center " +
-                              (isWinner
-                                ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-200 font-semibold"
-                                : "border-(--card-border) bg-(--background)")
-                            }
-                          >
-                            {metric.format(value)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                    </span>
+                  </div>
+                  {stocks.map((stock) => {
+                    const value = stock[metric.key] as number | null;
+                    const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
+                    return (
+                      <div
+                        key={`${metric.key}-${stock.symbol}`}
+                        className={
+                          "rounded-xl border px-2 py-1.5 text-center text-sm " +
+                          (isWinner
+                            ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-200 font-semibold"
+                            : "border-(--card-border) bg-(--background)")
+                        }
+                      >
+                        {metric.format(value)}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         )}

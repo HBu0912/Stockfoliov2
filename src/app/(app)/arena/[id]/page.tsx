@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { HoldingPie } from "@/components/HoldingPie";
+import { TickerSymbol } from "@/components/TickerSymbol";
 import type { Holding } from "@/generated/prisma";
 import { formatPctChangeLine } from "@/lib/feed-copy";
 
@@ -208,7 +209,17 @@ export default function ArenaDetailPage() {
             </div>
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 shadow-sm">
               <p className="text-sm font-medium">{data.arena.name} Top Picks</p>
-              <p className="mt-1 text-xs font-mono text-(--muted)">{Array.from(new Set(data.portfolios.flatMap((p)=>p.rows.slice(0,3).map((r)=>r.label)))).slice(0,5).join(", ") || "—"}</p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {Array.from(new Set(data.portfolios.flatMap((p) => p.rows.slice(0, 3).map((r) => r.label))))
+                  .slice(0, 5)
+                  .map((ticker) => (
+                    <TickerSymbol
+                      key={ticker}
+                      symbol={ticker}
+                      className="rounded border border-(--card-border) px-1.5 py-0.5 text-xs font-mono text-(--muted) underline-offset-2 hover:underline"
+                    />
+                  ))}
+              </div>
             </div>
             <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 shadow-sm md:col-span-2">
               <p className="text-sm font-medium">Outlier Bets</p>
@@ -275,7 +286,15 @@ export default function ArenaDetailPage() {
               {shared.length === 0 ? (
                 <p className="mt-2 text-sm text-(--muted)">None yet.</p>
               ) : (
-                <p className="mt-2 text-sm font-mono">{shared.join(", ")}</p>
+                <div className="mt-2 flex flex-wrap justify-center gap-2 text-sm font-mono">
+                  {shared.map((ticker) => (
+                    <TickerSymbol
+                      key={ticker}
+                      symbol={ticker}
+                      className="rounded border border-(--card-border) px-2 py-0.5 underline-offset-2 hover:underline"
+                    />
+                  ))}
+                </div>
               )}
             </div>
             <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 text-center shadow-sm">
@@ -303,7 +322,7 @@ export default function ArenaDetailPage() {
             <ul className="max-h-[280px] space-y-1 overflow-y-auto pr-1 text-sm">
               {otherHoldings.slice(0, 50).map((r) => (
                 <li key={r.label} className="flex justify-between border-b border-(--card-border)/50 py-1">
-                  <span className="font-mono">{r.label}</span>
+                  <TickerSymbol symbol={r.label} className="font-mono underline-offset-2 hover:underline" />
                   <span>{r.pct.toFixed(1)}%</span>
                 </li>
               ))}

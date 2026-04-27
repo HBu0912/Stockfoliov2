@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatNumber, formatUsd } from "@/lib/money";
 import type { Holding } from "@/generated/prisma";
+import { TickerSymbol } from "./TickerSymbol";
 
 type H = Holding;
 
@@ -51,7 +52,7 @@ export function HoldingsTable({
           return (
             <article key={h.id} className="rounded-lg border border-(--card-border) bg-(--background) p-3">
               <div className="mb-2 flex items-center justify-between">
-                <span className="font-mono text-sm font-semibold">{h.symbol}</span>
+                <TickerSymbol symbol={h.symbol} className="font-mono text-sm font-semibold underline-offset-2 hover:underline" />
                 <span className="text-sm font-medium">{accountTotal > 0 ? `${pct.toFixed(1)}%` : "—"}</span>
               </div>
               <div className="grid grid-cols-2 gap-y-1 text-xs">
@@ -99,7 +100,9 @@ export function HoldingsTable({
               const pct = accountTotal > 0 ? (val / accountTotal) * 100 : 0;
               return (
                 <tr key={h.id} className="border-t border-(--card-border)">
-                  <td className="p-2 font-mono font-medium">{h.symbol}</td>
+                  <td className="p-2 font-mono font-medium">
+                    <TickerSymbol symbol={h.symbol} className="underline-offset-2 hover:underline" />
+                  </td>
                   <td className="p-2 text-right font-mono">{formatNumber(h.shares, 4)}</td>
                   <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
                   <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
