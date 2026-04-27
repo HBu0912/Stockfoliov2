@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 
 const intervals = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"] as const;
@@ -39,6 +40,12 @@ type Payload = {
 function formatPct(v: number | null | undefined): string {
   if (v == null || Number.isNaN(v)) return "—";
   return `${formatNumber(v * 100, 2)}%`;
+}
+
+function formatCloseTooltip(value: ValueType | undefined) {
+  if (value == null) return "—";
+  const n = typeof value === "number" ? value : Number(value);
+  return formatUsd(Number.isFinite(n) ? n : null);
 }
 
 export function StockAnalysisPanel({ symbol }: { symbol: string }) {
@@ -132,7 +139,7 @@ export function StockAnalysisPanel({ symbol }: { symbol: string }) {
             <LineChart data={chartRows}>
               <XAxis dataKey="label" minTickGap={28} tick={{ fontSize: 11 }} />
               <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={56} />
-              <Tooltip formatter={(value: number) => formatUsd(value)} />
+              <Tooltip formatter={formatCloseTooltip} />
               <Line type="monotone" dataKey="close" stroke="#34d399" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
