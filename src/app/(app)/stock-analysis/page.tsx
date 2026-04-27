@@ -51,7 +51,11 @@ export default function StockAnalysisPage() {
       </section>
 
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-        <StockAnalysisPanel symbol={activeSymbol} />
+        <StockAnalysisPanel
+          key={activeSymbol}
+          symbol={activeSymbol}
+          showOpenPageButton={false}
+        />
       </section>
     </div>
   );

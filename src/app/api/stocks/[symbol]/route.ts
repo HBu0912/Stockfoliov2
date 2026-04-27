@@ -11,18 +11,36 @@ function isIntervalKey(v: string): v is IntervalKey {
   return intervals.includes(v as IntervalKey);
 }
 
-function chartWindow(interval: IntervalKey) {
+function chartWindow(interval: IntervalKey, firstTradeDate: Date | null) {
   const now = new Date();
   const ytdStart = new Date(now.getFullYear(), 0, 1);
   const day = 24 * 60 * 60 * 1000;
-  if (interval === "1D") return { period1: new Date(now.getTime() - day), period2: now, chartInterval: "5m" as const };
-  if (interval === "1W") return { period1: new Date(now.getTime() - 7 * day), period2: now, chartInterval: "30m" as const };
-  if (interval === "1M") return { period1: new Date(now.getTime() - 30 * day), period2: now, chartInterval: "1d" as const };
-  if (interval === "3M") return { period1: new Date(now.getTime() - 90 * day), period2: now, chartInterval: "1d" as const };
-  if (interval === "YTD") return { period1: ytdStart, period2: now, chartInterval: "1d" as const };
-  if (interval === "1Y") return { period1: new Date(now.getTime() - 365 * day), period2: now, chartInterval: "1wk" as const };
-  if (interval === "5Y") return { period1: new Date(now.getTime() - 365 * 5 * day), period2: now, chartInterval: "1mo" as const };
-  return { period1: new Date(now.getTime() - 365 * 20 * day), period2: now, chartInterval: "3mo" as const };
+  if (interval === "1D") {
+    return { period1: new Date(now.getTime() - day), period2: now, chartInterval: "5m" as const };
+  }
+  if (interval === "1W") {
+    return { period1: new Date(now.getTime() - 7 * day), period2: now, chartInterval: "30m" as const };
+  }
+  if (interval === "1M") {
+    return { period1: new Date(now.getTime() - 30 * day), period2: now, chartInterval: "1d" as const };
+  }
+  if (interval === "3M") {
+    return { period1: new Date(now.getTime() - 90 * day), period2: now, chartInterval: "1d" as const };
+  }
+  if (interval === "YTD") {
+    return { period1: ytdStart, period2: now, chartInterval: "1d" as const };
+  }
+  if (interval === "1Y") {
+    return { period1: new Date(now.getTime() - 365 * day), period2: now, chartInterval: "1d" as const };
+  }
+  if (interval === "5Y") {
+    return { period1: new Date(now.getTime() - 365 * 5 * day), period2: now, chartInterval: "1mo" as const };
+  }
+  return {
+    period1: firstTradeDate ?? new Date(now.getTime() - 365 * 30 * day),
+    period2: now,
+    chartInterval: "1mo" as const,
+  };
 }
 
 function n(v: number | null | undefined): number | null {
@@ -37,15 +55,26 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
   const u = new URL(req.url);
   const intervalRaw = (u.searchParams.get("interval") ?? "1M").toUpperCase();
   const interval: IntervalKey = isIntervalKey(intervalRaw) ? intervalRaw : "1M";
-  const { period1, period2, chartInterval } = chartWindow(interval);
 
   try {
-    const [quote, summary, chart] = await Promise.all([
-      yahoo.quote(symbol),
+    const quote = await yahoo.quote(symbol);
+    const firstTradeDate = quote.firstTradeDateMilliseconds
+      ? new Date(quote.firstTradeDateMilliseconds)
+      : null;
+    const { period1, period2, chartInterval } = chartWindow(interval, firstTradeDate);
+
+    const [summary, chart, search] = await Promise.all([
       yahoo.quoteSummary(symbol, {
-        modules: ["summaryDetail", "defaultKeyStatistics", "financialData"],
+        modules: [
+          "summaryDetail",
+          "defaultKeyStatistics",
+          "financialData",
+          "summaryProfile",
+          "recommendationTrend",
+        ],
       }),
       yahoo.chart(symbol, { period1, period2, interval: chartInterval }),
+      yahoo.search(symbol, { quotesCount: 0, newsCount: 8 }).catch(() => null),
     ]);
 
     const points =
@@ -59,12 +88,36 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
     const current = n(quote.regularMarketPrice) ?? n(quote.postMarketPrice) ?? n(quote.preMarketPrice);
     const low52 = n(quote.fiftyTwoWeekLow);
     const high52 = n(quote.fiftyTwoWeekHigh);
+    const first = points[0]?.close;
+    const last = points[points.length - 1]?.close;
+    const changePct =
+      first != null && last != null && first !== 0 ? ((last - first) / first) * 100 : null;
 
     return NextResponse.json({
       symbol,
       name: quote.longName ?? quote.shortName ?? quote.displayName ?? symbol,
       interval,
       chart: points,
+      changePct,
+      sector: summary.summaryProfile?.sector ?? null,
+      overview: summary.summaryProfile?.longBusinessSummary ?? null,
+      analyst: summary.recommendationTrend?.trend?.[0]
+        ? {
+            strongBuy: summary.recommendationTrend.trend[0].strongBuy ?? 0,
+            buy: summary.recommendationTrend.trend[0].buy ?? 0,
+            hold: summary.recommendationTrend.trend[0].hold ?? 0,
+            sell: summary.recommendationTrend.trend[0].sell ?? 0,
+            strongSell: summary.recommendationTrend.trend[0].strongSell ?? 0,
+          }
+        : null,
+      news:
+        search?.news?.map((item) => ({
+          id: item.uuid,
+          title: item.title,
+          publisher: item.publisher,
+          link: item.link,
+          publishedAt: item.providerPublishTime?.toISOString() ?? null,
+        })) ?? [],
       metrics: {
         price: current,
         marketCap: n(quote.marketCap),
