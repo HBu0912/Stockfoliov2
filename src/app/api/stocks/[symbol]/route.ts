@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { formatMarketCap } from "@/lib/money";
+import { mergeFundamentals, n } from "@/lib/yahoo-fundamentals";
 
 const yahoo = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
@@ -43,10 +44,6 @@ function chartWindow(interval: IntervalKey, firstTradeDate: Date | null) {
   };
 }
 
-function n(v: number | null | undefined): number | null {
-  return v == null || !Number.isFinite(v) ? null : Number(v);
-}
-
 export async function GET(req: Request, ctx: { params: Promise<{ symbol: string }> }) {
   const { symbol: rawSymbol } = await ctx.params;
   const symbol = rawSymbol.trim().toUpperCase();
@@ -55,6 +52,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
   const u = new URL(req.url);
   const intervalRaw = (u.searchParams.get("interval") ?? "1M").toUpperCase();
   const interval: IntervalKey = isIntervalKey(intervalRaw) ? intervalRaw : "1M";
+  const newsLimitRaw = Number(u.searchParams.get("newsLimit") ?? "5");
+  const newsOffsetRaw = Number(u.searchParams.get("newsOffset") ?? "0");
+  const newsLimit = Number.isFinite(newsLimitRaw) ? Math.min(20, Math.max(1, newsLimitRaw)) : 5;
+  const newsOffset = Number.isFinite(newsOffsetRaw) ? Math.max(0, newsOffsetRaw) : 0;
 
   try {
     const quote = await yahoo.quote(symbol);
@@ -62,6 +63,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       ? new Date(quote.firstTradeDateMilliseconds)
       : null;
     const { period1, period2, chartInterval } = chartWindow(interval, firstTradeDate);
+
+    const newsFetchCount = Math.min(50, newsOffset + newsLimit);
 
     const [summary, chart, search] = await Promise.all([
       yahoo.quoteSummary(symbol, {
@@ -74,7 +77,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
         ],
       }),
       yahoo.chart(symbol, { period1, period2, interval: chartInterval }),
-      yahoo.search(symbol, { quotesCount: 0, newsCount: 8 }).catch(() => null),
+      yahoo.search(symbol, { quotesCount: 0, newsCount: newsFetchCount }).catch(() => null),
     ]);
 
     const points =
@@ -93,6 +96,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
     const changePct =
       first != null && last != null && first !== 0 ? ((last - first) / first) * 100 : null;
 
+    const fundamentals = mergeFundamentals(quote, summary);
+
     return NextResponse.json({
       symbol,
       name: quote.longName ?? quote.shortName ?? quote.displayName ?? symbol,
@@ -100,6 +105,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       chart: points,
       changePct,
       sector: summary.summaryProfile?.sector ?? null,
+      industry: summary.summaryProfile?.industry ?? null,
+      exchange: quote.fullExchangeName ?? quote.exchange ?? null,
+      currency: quote.currency ?? null,
+      marketState: quote.marketState ?? null,
       overview: summary.summaryProfile?.longBusinessSummary ?? null,
       analyst: summary.recommendationTrend?.trend?.[0]
         ? {
@@ -111,25 +120,48 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
           }
         : null,
       news:
-        search?.news?.map((item) => ({
+        search?.news
+          ?.slice(newsOffset, newsOffset + newsLimit)
+          .map((item) => ({
           id: item.uuid,
           title: item.title,
           publisher: item.publisher,
           link: item.link,
           publishedAt: item.providerPublishTime?.toISOString() ?? null,
-        })) ?? [],
+          })) ?? [],
+      newsMeta: {
+        limit: newsLimit,
+        offset: newsOffset,
+        returned: search?.news?.slice(newsOffset, newsOffset + newsLimit).length ?? 0,
+        totalAvailable: search?.news?.length ?? 0,
+        fetched: newsFetchCount,
+      },
+      context: {
+        avgVolume10Day: n(quote.averageDailyVolume10Day),
+        avgVolume3Month: n(quote.averageDailyVolume3Month),
+        regularMarketVolume: n(quote.regularMarketVolume),
+        fiftyDayAverage: n(quote.fiftyDayAverage),
+        twoHundredDayAverage: n(quote.twoHundredDayAverage),
+        fiftyTwoWeekChangePercent: n(quote.fiftyTwoWeekChangePercent),
+        trailingAnnualDividendRate: n(quote.trailingAnnualDividendRate),
+        epsTrailingTwelveMonths: n(quote.epsTrailingTwelveMonths),
+        epsForward: n(quote.epsForward),
+      },
       metrics: {
         price: current,
         marketCap: n(quote.marketCap),
         marketCapText: quote.marketCap != null ? formatMarketCap(quote.marketCap) : null,
-        beta: n(summary.defaultKeyStatistics?.beta ?? summary.summaryDetail?.beta),
-        trailingPE: n(summary.summaryDetail?.trailingPE),
-        forwardPE: n(summary.summaryDetail?.forwardPE),
-        pegRatio: n(summary.defaultKeyStatistics?.pegRatio),
-        priceToBook: n(summary.defaultKeyStatistics?.priceToBook),
-        profitMargin: n(summary.financialData?.profitMargins),
-        returnOnEquity: n(summary.financialData?.returnOnEquity),
-        dividendYield: n(summary.summaryDetail?.dividendYield),
+        beta: fundamentals.beta,
+        trailingPE: fundamentals.trailingPE,
+        forwardPE: fundamentals.forwardPE,
+        pegRatio: fundamentals.pegRatio,
+        priceToBook: fundamentals.priceToBook,
+        profitMargin: fundamentals.profitMargin,
+        returnOnEquity: fundamentals.returnOnEquity,
+        dividendYield: fundamentals.dividendYield,
+        enterpriseValue: fundamentals.enterpriseValue,
+        enterpriseToRevenue: fundamentals.enterpriseToRevenue,
+        enterpriseToEbitda: fundamentals.enterpriseToEbitda,
         week52Low: low52,
         week52High: high52,
       },

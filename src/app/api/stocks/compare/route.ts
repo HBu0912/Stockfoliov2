@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchQuote } from "@/lib/market";
 import YahooFinance from "yahoo-finance2";
+import { mergeFundamentals } from "@/lib/yahoo-fundamentals";
 
 type Fundamentals = {
   beta: number | null;
@@ -26,19 +27,24 @@ function toNumber(value: number | null | undefined): number | null {
 }
 
 async function fetchFundamentals(symbol: string): Promise<Fundamentals> {
-  const summary = await yahoo.quoteSummary(symbol, {
-    modules: ["summaryDetail", "defaultKeyStatistics", "financialData"],
-  });
+  const [quote, summary] = await Promise.all([
+    yahoo.quote(symbol),
+    yahoo.quoteSummary(symbol, {
+      modules: ["summaryDetail", "defaultKeyStatistics", "financialData"],
+    }),
+  ]);
+
+  const merged = mergeFundamentals(quote, summary);
 
   return {
-    beta: toNumber(summary.defaultKeyStatistics?.beta ?? summary.summaryDetail?.beta),
-    trailingPE: toNumber(summary.summaryDetail?.trailingPE),
-    forwardPE: toNumber(summary.summaryDetail?.forwardPE),
-    pegRatio: toNumber(summary.defaultKeyStatistics?.pegRatio),
-    priceToBook: toNumber(summary.defaultKeyStatistics?.priceToBook),
-    profitMargin: toNumber(summary.financialData?.profitMargins),
-    returnOnEquity: toNumber(summary.financialData?.returnOnEquity),
-    dividendYield: toNumber(summary.summaryDetail?.dividendYield),
+    beta: merged.beta,
+    trailingPE: merged.trailingPE,
+    forwardPE: merged.forwardPE,
+    pegRatio: merged.pegRatio,
+    priceToBook: merged.priceToBook,
+    profitMargin: merged.profitMargin,
+    returnOnEquity: merged.returnOnEquity,
+    dividendYield: merged.dividendYield,
   };
 }
 

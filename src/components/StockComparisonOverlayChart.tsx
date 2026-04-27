@@ -1,0 +1,175 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
+
+const intervals = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"] as const;
+type IntervalKey = (typeof intervals)[number];
+
+type ChartPoint = { at: string; close: number };
+
+type SeriesPayload = {
+  symbol: string;
+  interval: IntervalKey;
+  chart: ChartPoint[];
+};
+
+const palette = ["#34d399", "#60a5fa", "#fbbf24"];
+
+function formatXAxis(dateISO: string, interval: IntervalKey): string {
+  const d = new Date(dateISO);
+  if (interval === "1D" || interval === "1W") {
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  if (interval === "5Y" || interval === "ALL") {
+    return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  }
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function normalizedMap(points: ChartPoint[]): Map<string, number> {
+  const cleaned = points.filter((p) => p.close > 0);
+  const base = cleaned[0]?.close;
+  if (!base) return new Map();
+  const map = new Map<string, number>();
+  for (const p of cleaned) {
+    map.set(p.at, ((p.close - base) / base) * 100);
+  }
+  return map;
+}
+
+export function StockComparisonOverlayChart({ symbols }: { symbols: string[] }) {
+  const [interval, setInterval] = useState<IntervalKey>("1M");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [series, setSeries] = useState<SeriesPayload[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (symbols.length < 2) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const results = await Promise.all(
+          symbols.map(async (sym) => {
+            const res = await fetch(`/api/stocks/${encodeURIComponent(sym)}?interval=${interval}`);
+            const json = (await res.json().catch(() => ({}))) as SeriesPayload & { error?: string };
+            if (!res.ok) throw new Error(json.error ?? `Could not load ${sym}`);
+            return { symbol: json.symbol, interval: json.interval, chart: json.chart };
+          })
+        );
+        if (!cancelled) setSeries(results);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load overlay chart.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [symbols, interval]);
+
+  const merged = useMemo(() => {
+    if (series.length < 2) return [];
+    const maps = series.map((s) => ({ symbol: s.symbol, map: normalizedMap(s.chart) }));
+    const times = new Set<string>();
+    for (const s of series) for (const p of s.chart) times.add(p.at);
+    const sorted = [...times].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    return sorted.map((at, idx) => {
+      const row: Record<string, string | number> = { idx, at };
+      row.label = formatXAxis(at, interval);
+      for (const m of maps) {
+        const v = m.map.get(at);
+        if (v != null) row[m.symbol] = v;
+      }
+      return row;
+    });
+  }, [series, interval]);
+
+  return (
+    <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Overlay performance</h3>
+          <p className="text-xs text-(--muted)">Normalized to 0% at the start of the selected window.</p>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {intervals.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setInterval(k)}
+              className={
+                "rounded-md px-2 py-1 text-xs " +
+                (interval === k
+                  ? "bg-(--accent) text-(--accent-foreground)"
+                  : "border border-(--card-border) hover:bg-(--background)")
+              }
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 h-56 rounded-xl border border-(--card-border) bg-(--background) p-2">
+        {loading ? (
+          <p className="px-2 py-3 text-sm text-(--muted)">Loading overlay...</p>
+        ) : error ? (
+          <p className="px-2 py-3 text-sm text-red-400">{error}</p>
+        ) : merged.length === 0 ? (
+          <p className="px-2 py-3 text-sm text-(--muted)">No overlay data.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={merged}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+              <XAxis
+                dataKey="idx"
+                tickFormatter={(v) => String(merged[Number(v)]?.label ?? "")}
+                minTickGap={24}
+              />
+              <YAxis tickFormatter={(v) => `${v}%`} width={48} />
+              <Tooltip
+                formatter={(value: ValueType | undefined) => {
+                  if (value == null) return "—";
+                  const n = typeof value === "number" ? value : Number(value);
+                  return `${formatNumber(Number.isFinite(n) ? n : NaN, 2)}%`;
+                }}
+                labelFormatter={(_, payload) => {
+                  const row = payload?.[0]?.payload as { label?: string } | undefined;
+                  return row?.label ?? "";
+                }}
+                contentStyle={{
+                  background: "var(--card)",
+                  borderColor: "var(--card-border)",
+                  borderRadius: "12px",
+                }}
+              />
+              <Legend />
+              {series.map((s, idx) => (
+                <Line
+                  key={s.symbol}
+                  type="monotone"
+                  dataKey={s.symbol}
+                  stroke={palette[idx % palette.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatNumber(n: number | null | undefined, digits = 2): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return n.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+}

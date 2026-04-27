@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatNumber, formatUsd } from "@/lib/money";
+import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 import type { Holding } from "@/generated/prisma";
 import { TickerSymbol } from "./TickerSymbol";
 
@@ -18,7 +18,9 @@ export function HoldingsTable({
   onEditShares?: (id: string, nextShares: number) => void;
   onRemove?: (id: string) => void;
 }) {
-  const [sortKey, setSortKey] = useState<"symbol" | "shares" | "price" | "value" | "pct">("value");
+  const [sortKey, setSortKey] = useState<"symbol" | "shares" | "price" | "mktcap" | "value" | "pct">(
+    "value"
+  );
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   if (holdings.length === 0) {
     return <p className="text-sm text-(--muted)">No holdings in this list yet.</p>;
@@ -32,6 +34,7 @@ export function HoldingsTable({
     if (sortKey === "symbol") cmp = a.symbol.localeCompare(b.symbol);
     if (sortKey === "shares") cmp = a.shares - b.shares;
     if (sortKey === "price") cmp = (a.lastPrice ?? 0) - (b.lastPrice ?? 0);
+    if (sortKey === "mktcap") cmp = (a.marketCap ?? 0) - (b.marketCap ?? 0);
     if (sortKey === "value") cmp = av - bv;
     if (sortKey === "pct") cmp = ap - bp;
     return sortDir === "asc" ? cmp : -cmp;
@@ -60,6 +63,8 @@ export function HoldingsTable({
                 <span className="text-right font-mono">{formatNumber(h.shares, 4)}</span>
                 <span className="text-(--muted)">Last price</span>
                 <span className="text-right">{formatUsd(h.lastPrice)}</span>
+                <span className="text-(--muted)">Market cap</span>
+                <span className="text-right">{formatMarketCap(h.marketCap)}</span>
                 <span className="text-(--muted)">Value</span>
                 <span className="text-right font-medium">{formatUsd(val)}</span>
               </div>
@@ -89,6 +94,11 @@ export function HoldingsTable({
               <th className="p-2 font-medium"><button type="button" onClick={() => sort("symbol")}>Ticker {icon("symbol")}</button></th>
               <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("shares")}>Shares {icon("shares")}</button></th>
               <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("price")}>Last price {icon("price")}</button></th>
+              <th className="p-2 text-right font-medium">
+                <button type="button" onClick={() => sort("mktcap")}>
+                  Market cap {icon("mktcap")}
+                </button>
+              </th>
               <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("value")}>Value {icon("value")}</button></th>
               <th className="p-2 text-right font-medium"><button type="button" onClick={() => sort("pct")}>% of Account {icon("pct")}</button></th>
               {(onEditShares || onRemove) && <th className="p-2 w-40" />}
@@ -105,6 +115,7 @@ export function HoldingsTable({
                   </td>
                   <td className="p-2 text-right font-mono">{formatNumber(h.shares, 4)}</td>
                   <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
+                  <td className="p-2 text-right">{formatMarketCap(h.marketCap)}</td>
                   <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
                   <td className="p-2 text-right">{accountTotal > 0 ? `${pct.toFixed(1)}%` : "—"}</td>
                   {(onEditShares || onRemove) && (

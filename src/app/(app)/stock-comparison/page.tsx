@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 import { TickerSymbol } from "@/components/TickerSymbol";
+import { StockComparisonOverlayChart } from "@/components/StockComparisonOverlayChart";
 
 type ComparedStock = {
   symbol: string;
@@ -106,7 +107,7 @@ function normalizeTicker(text: string): string {
 
 export default function StockComparisonPage() {
   const [tickerInput, setTickerInput] = useState("");
-  const [tickers, setTickers] = useState<string[]>(["AAPL", "MSFT"]);
+  const [tickers, setTickers] = useState<string[]>([]);
   const [stocks, setStocks] = useState<ComparedStock[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,9 +180,7 @@ export default function StockComparisonPage() {
     <div className="space-y-5">
       <div className="rounded-2xl border border-(--card-border) bg-(--card) px-5 py-4 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Stock Comparison</h1>
-        <p className="mt-1 text-sm text-(--muted)">
-          Compare 2-3 ticker symbols side by side using Yahoo Finance metrics.
-        </p>
+        <p className="mt-1 text-sm text-(--muted)">Add multiple tickers to compare.</p>
       </div>
 
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
@@ -318,6 +317,8 @@ export default function StockComparisonPage() {
           </div>
         )}
       </section>
+
+      {stocks.length >= 2 && <StockComparisonOverlayChart symbols={stocks.map((s) => s.symbol)} />}
     </div>
   );
 }

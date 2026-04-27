@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Line,
   LineChart,
@@ -11,7 +11,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 
 const intervals = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"] as const;
@@ -24,6 +23,10 @@ type Payload = {
   chart: Array<{ at: string; close: number }>;
   changePct: number | null;
   sector: string | null;
+  industry: string | null;
+  exchange: string | null;
+  currency: string | null;
+  marketState: string | null;
   overview: string | null;
   analyst: {
     strongBuy: number;
@@ -39,9 +42,28 @@ type Payload = {
     link: string;
     publishedAt: string | null;
   }>;
+  newsMeta: {
+    limit: number;
+    offset: number;
+    returned: number;
+    totalAvailable: number;
+    fetched: number;
+  };
+  context: {
+    avgVolume10Day: number | null;
+    avgVolume3Month: number | null;
+    regularMarketVolume: number | null;
+    fiftyDayAverage: number | null;
+    twoHundredDayAverage: number | null;
+    fiftyTwoWeekChangePercent: number | null;
+    trailingAnnualDividendRate: number | null;
+    epsTrailingTwelveMonths: number | null;
+    epsForward: number | null;
+  };
   metrics: {
     price: number | null;
     marketCap: number | null;
+    marketCapText: string | null;
     beta: number | null;
     trailingPE: number | null;
     forwardPE: number | null;
@@ -50,6 +72,9 @@ type Payload = {
     profitMargin: number | null;
     returnOnEquity: number | null;
     dividendYield: number | null;
+    enterpriseValue: number | null;
+    enterpriseToRevenue: number | null;
+    enterpriseToEbitda: number | null;
     week52Low: number | null;
     week52High: number | null;
   };
@@ -58,12 +83,6 @@ type Payload = {
 function formatPct(v: number | null | undefined): string {
   if (v == null || Number.isNaN(v)) return "—";
   return `${formatNumber(v * 100, 2)}%`;
-}
-
-function formatCloseTooltip(value: ValueType | undefined) {
-  if (value == null) return "—";
-  const n = typeof value === "number" ? value : Number(value);
-  return formatUsd(Number.isFinite(n) ? n : null);
 }
 
 function formatXAxis(dateISO: string, interval: IntervalKey): string {
@@ -90,6 +109,59 @@ function formatTooltipDate(dateISO: string, interval: IntervalKey): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function PriceTooltip({
+  active,
+  payload,
+  interval,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: { at?: string; close?: number } }>;
+  interval: IntervalKey;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as { at?: string; close?: number } | undefined;
+  if (!row?.at || row.close == null) return null;
+  return (
+    <div className="rounded-xl border border-(--card-border) bg-(--card) px-3 py-2 text-xs shadow-lg">
+      <p className="text-(--muted)">{formatTooltipDate(row.at, interval)}</p>
+      <p className="mt-1 text-sm font-semibold">{formatUsd(row.close)}</p>
+    </div>
+  );
+}
+
+function AnalystBar({ analyst }: { analyst: NonNullable<Payload["analyst"]> }) {
+  const segments = [
+    { key: "strongBuy", label: "SB", count: analyst.strongBuy, className: "bg-emerald-500" },
+    { key: "buy", label: "B", count: analyst.buy, className: "bg-lime-400" },
+    { key: "hold", label: "H", count: analyst.hold, className: "bg-yellow-300 text-black" },
+    { key: "sell", label: "S", count: analyst.sell, className: "bg-orange-500" },
+    { key: "strongSell", label: "SS", count: analyst.strongSell, className: "bg-red-600" },
+  ] as const;
+  const total = segments.reduce((sum, s) => sum + Math.max(0, s.count), 0) || 1;
+  return (
+    <div className="space-y-2">
+      <div className="flex h-3 overflow-hidden rounded-full border border-(--card-border)">
+        {segments.map((s) => (
+          <div
+            key={s.key}
+            className={s.className}
+            style={{ width: `${(Math.max(0, s.count) / total) * 100}%` }}
+            title={`${s.label}: ${s.count}`}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-5 gap-2 text-center text-[11px] text-(--muted)">
+        {segments.map((s) => (
+          <div key={s.key}>
+            <p className="font-semibold text-foreground">{s.count}</p>
+            <p>{s.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function StockAnalysisPanel({
   symbol,
   showOpenPageButton = true,
@@ -98,11 +170,18 @@ export function StockAnalysisPanel({
   showOpenPageButton?: boolean;
 }) {
   const [interval, setInterval] = useState<IntervalKey>("1M");
+  const [reloadToken, setReloadToken] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Payload | null>(null);
+
+  const [newsOffset, setNewsOffset] = useState(0);
+  const newsLimit = 5;
+
+  const [dragging, setDragging] = useState(false);
   const [dragStartIdx, setDragStartIdx] = useState<number | null>(null);
   const [dragEndIdx, setDragEndIdx] = useState<number | null>(null);
+  const chartWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +190,12 @@ export function StockAnalysisPanel({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/stocks/${encodeURIComponent(symbol)}?interval=${interval}`);
+        const params = new URLSearchParams({
+          interval,
+          newsLimit: String(newsLimit),
+          newsOffset: String(newsOffset),
+        });
+        const res = await fetch(`/api/stocks/${encodeURIComponent(symbol)}?${params.toString()}`);
         const json = (await res.json().catch(() => ({}))) as Payload & { error?: string };
         if (!res.ok) {
           if (!cancelled) setError(json.error ?? "Could not load stock analysis.");
@@ -126,7 +210,7 @@ export function StockAnalysisPanel({
     return () => {
       cancelled = true;
     };
-  }, [symbol, interval]);
+  }, [symbol, interval, reloadToken, newsOffset]);
 
   const rangePct = useMemo(() => {
     if (!data?.metrics.week52Low || !data.metrics.week52High || !data.metrics.price) return null;
@@ -165,6 +249,19 @@ export function StockAnalysisPanel({
     };
   }, [chartRows, dragStartIdx, dragEndIdx]);
 
+  const idxFromClientX = useCallback(
+    (clientX: number) => {
+      const el = chartWrapRef.current;
+      if (!el || chartRows.length === 0) return null;
+      const rect = el.getBoundingClientRect();
+      const x = Math.min(Math.max(clientX - rect.left, 0), rect.width);
+      const ratio = rect.width <= 1 ? 0 : x / rect.width;
+      const idx = Math.round(ratio * (chartRows.length - 1));
+      return Math.max(0, Math.min(chartRows.length - 1, idx));
+    },
+    [chartRows.length]
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -176,204 +273,284 @@ export function StockAnalysisPanel({
             </span>
             <span
               className={
-                "ml-2 text-sm font-semibold " +
-                (isNegative ? "text-red-400" : "text-emerald-300")
+                "ml-2 text-sm font-semibold " + (isNegative ? "text-red-400" : "text-emerald-300")
               }
             >
-              {headerChange == null ? "—" : `${headerChange > 0 ? "+" : ""}${formatNumber(headerChange, 2)}%`}
+              {headerChange == null
+                ? "—"
+                : `${headerChange > 0 ? "+" : ""}${formatNumber(headerChange, 2)}%`}
             </span>
           </h3>
           <p className="text-sm text-(--muted)">{data?.name ?? "Loading company..."}</p>
+          <p className="mt-1 text-xs text-(--muted)">
+            {[data?.exchange, data?.currency, data?.marketState].filter(Boolean).join(" · ")}
+          </p>
         </div>
-        {showOpenPageButton && (
-          <Link
-            href={`/stock-analysis?symbol=${encodeURIComponent(symbol.toUpperCase())}`}
-            className="rounded-md border border-(--card-border) px-3 py-1.5 text-xs hover:bg-(--background)"
-          >
-            View in Stock Analysis
-          </Link>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-1">
-        {intervals.map((k) => (
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            key={k}
             type="button"
             onClick={() => {
-              setInterval(k);
+              setNewsOffset(0);
               setDragStartIdx(null);
               setDragEndIdx(null);
+              setReloadToken((t) => t + 1);
             }}
-            className={
-              "rounded-md px-2 py-1 text-xs " +
-              (interval === k
-                ? "bg-(--accent) text-(--accent-foreground)"
-                : "border border-(--card-border) hover:bg-(--background)")
-            }
+            className="rounded-md border border-(--card-border) px-3 py-1.5 text-xs hover:bg-(--background)"
           >
-            {k}
+            Refresh
           </button>
-        ))}
-      </div>
-
-      <div className="h-56 rounded-xl border border-(--card-border) bg-(--background) p-2">
-        {loading ? (
-          <p className="px-2 py-3 text-sm text-(--muted)">Loading chart...</p>
-        ) : error ? (
-          <p className="px-2 py-3 text-sm text-red-400">{error}</p>
-        ) : chartRows.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-(--muted)">No chart data available.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartRows}
-              onMouseDown={(state) => {
-                if (state && typeof state.activeTooltipIndex === "number") {
-                  setDragStartIdx(state.activeTooltipIndex);
-                  setDragEndIdx(state.activeTooltipIndex);
-                }
-              }}
-              onMouseMove={(state) => {
-                if (dragStartIdx == null) return;
-                if (state && typeof state.activeTooltipIndex === "number") {
-                  setDragEndIdx(state.activeTooltipIndex);
-                }
-              }}
-              onMouseUp={() => {
-                if (dragStartIdx == null || dragEndIdx == null) return;
-              }}
+          {showOpenPageButton && (
+            <Link
+              href={`/stock-analysis?symbol=${encodeURIComponent(symbol.toUpperCase())}`}
+              className="rounded-md border border-(--card-border) px-3 py-1.5 text-xs hover:bg-(--background)"
             >
-              <XAxis
-                dataKey="idx"
-                minTickGap={28}
-                tick={{ fontSize: 11 }}
-                tickFormatter={(value) => chartRows[Number(value)]?.label ?? ""}
-              />
-              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={56} />
-              <Tooltip
-                formatter={formatCloseTooltip}
-                labelFormatter={(_, payload) => {
-                  const row = payload?.[0]?.payload as { tooltipLabel?: string } | undefined;
-                  return row?.tooltipLabel ?? "";
-                }}
-                contentStyle={{
-                  background: "var(--card)",
-                  borderColor: "var(--card-border)",
-                  borderRadius: "12px",
-                  color: "var(--foreground)",
-                }}
-                itemStyle={{ color: "var(--foreground)" }}
-                labelStyle={{ color: "var(--muted)" }}
-              />
-              {selectedRange && (
-                <ReferenceArea
-                  x1={selectedRange.left}
-                  x2={selectedRange.right}
-                  strokeOpacity={0}
-                  fill="rgba(56,189,248,0.16)"
-                />
-              )}
-              <Line
-                type="monotone"
-                dataKey="close"
-                stroke={isNegative ? "#f87171" : "#34d399"}
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-      {selectedRange && (
-        <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2 text-xs">
-          Dragged return ({selectedRange.startLabel} → {selectedRange.endLabel}):{" "}
-          <span className={selectedRange.pct < 0 ? "text-red-400" : "text-emerald-300"}>
-            {selectedRange.pct > 0 ? "+" : ""}
-            {formatNumber(selectedRange.pct, 2)}%
-          </span>
+              View in Stock Analysis
+            </Link>
+          )}
         </div>
-      )}
+      </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricCard label="Market Cap" value={formatMarketCap(data?.metrics.marketCap)} />
-        <MetricCard label="Sector" value={data?.sector ?? "—"} />
-        <MetricCard label="Beta" value={formatNumber(data?.metrics.beta, 2)} />
-        <MetricCard label="P/E" value={formatNumber(data?.metrics.trailingPE, 2)} />
-        <MetricCard label="Forward P/E" value={formatNumber(data?.metrics.forwardPE, 2)} />
-        <MetricCard label="PEG Ratio" value={formatNumber(data?.metrics.pegRatio, 2)} />
-        <MetricCard label="Price/Book" value={formatNumber(data?.metrics.priceToBook, 2)} />
-        <MetricCard label="Profit Margin" value={formatPct(data?.metrics.profitMargin)} />
-        <MetricCard label="Return on Equity" value={formatPct(data?.metrics.returnOnEquity)} />
-        <MetricCard label="Dividend Yield" value={formatPct(data?.metrics.dividendYield)} />
-        <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2">
-          <p className="text-xs text-(--muted)">52 Week Range</p>
-          <p className="text-sm font-medium">
-            {formatUsd(data?.metrics.week52Low)} - {formatUsd(data?.metrics.week52High)}
-          </p>
-          <div className="mt-2 h-2 rounded-full bg-(--card-border)">
-            <div
-              className="relative h-2 rounded-full bg-sky-500/30"
-              style={{ width: "100%" }}
-            >
-              <span
-                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-white/60 bg-emerald-300"
-                style={{ left: `calc(${rangePct ?? 0}% - 6px)` }}
-              />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-1">
+            {intervals.map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => {
+                  setInterval(k);
+                  setNewsOffset(0);
+                  setDragStartIdx(null);
+                  setDragEndIdx(null);
+                }}
+                className={
+                  "rounded-md px-2 py-1 text-xs " +
+                  (interval === k
+                    ? "bg-(--accent) text-(--accent-foreground)"
+                    : "border border-(--card-border) hover:bg-(--background)")
+                }
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+
+          <div
+            ref={chartWrapRef}
+            className="h-56 rounded-xl border border-(--card-border) bg-(--background) p-2"
+            onPointerDown={(e) => {
+              const idx = idxFromClientX(e.clientX);
+              if (idx == null) return;
+              setDragging(true);
+              setDragStartIdx(idx);
+              setDragEndIdx(idx);
+              (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!dragging || dragStartIdx == null) return;
+              const idx = idxFromClientX(e.clientX);
+              if (idx == null) return;
+              setDragEndIdx(idx);
+            }}
+            onPointerUp={(e) => {
+              if (!dragging) return;
+              setDragging(false);
+              try {
+                (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+              } catch {
+                // ignore
+              }
+            }}
+            onPointerLeave={(e) => {
+              if (!dragging) return;
+              setDragging(false);
+              try {
+                (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+              } catch {
+                // ignore
+              }
+            }}
+          >
+            {loading ? (
+              <p className="px-2 py-3 text-sm text-(--muted)">Loading chart...</p>
+            ) : error ? (
+              <p className="px-2 py-3 text-sm text-red-400">{error}</p>
+            ) : chartRows.length === 0 ? (
+              <p className="px-2 py-3 text-sm text-(--muted)">No chart data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartRows}>
+                  <XAxis
+                    dataKey="idx"
+                    minTickGap={28}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(value) => chartRows[Number(value)]?.label ?? ""}
+                  />
+                  <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={56} />
+                  <Tooltip content={<PriceTooltip interval={interval} />} />
+                  {selectedRange && (
+                    <ReferenceArea
+                      x1={selectedRange.left}
+                      x2={selectedRange.right}
+                      strokeOpacity={0}
+                      fill="rgba(56,189,248,0.16)"
+                    />
+                  )}
+                  <Line
+                    type="monotone"
+                    dataKey="close"
+                    name="Price"
+                    stroke={isNegative ? "#f87171" : "#34d399"}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {selectedRange && (
+            <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2 text-xs">
+              Selected window ({selectedRange.startLabel} → {selectedRange.endLabel}):{" "}
+              <span className={selectedRange.pct < 0 ? "text-red-400" : "text-emerald-300"}>
+                {selectedRange.pct > 0 ? "+" : ""}
+                {formatNumber(selectedRange.pct, 2)}%
+              </span>
+            </div>
+          )}
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <MetricCard label="Market Cap" value={formatMarketCap(data?.metrics.marketCap)} />
+            <MetricCard label="Sector" value={data?.sector ?? "—"} />
+            <MetricCard label="Industry" value={data?.industry ?? "—"} />
+            <MetricCard label="Beta" value={formatNumber(data?.metrics.beta, 2)} />
+            <MetricCard label="P/E" value={formatNumber(data?.metrics.trailingPE, 2)} />
+            <MetricCard label="Forward P/E" value={formatNumber(data?.metrics.forwardPE, 2)} />
+            <MetricCard label="PEG Ratio" value={formatNumber(data?.metrics.pegRatio, 2)} />
+            <MetricCard label="Price/Book" value={formatNumber(data?.metrics.priceToBook, 2)} />
+            <MetricCard label="Enterprise Value" value={formatMarketCap(data?.metrics.enterpriseValue)} />
+            <MetricCard
+              label="EV / Revenue"
+              value={formatNumber(data?.metrics.enterpriseToRevenue, 2)}
+            />
+            <MetricCard label="EV / EBITDA" value={formatNumber(data?.metrics.enterpriseToEbitda, 2)} />
+            <MetricCard label="Profit Margin" value={formatPct(data?.metrics.profitMargin)} />
+            <MetricCard label="Return on Equity" value={formatPct(data?.metrics.returnOnEquity)} />
+            <MetricCard label="Dividend Yield" value={formatPct(data?.metrics.dividendYield)} />
+            <MetricCard label="EPS (TTM)" value={formatNumber(data?.context.epsTrailingTwelveMonths, 2)} />
+            <MetricCard label="EPS (Fwd)" value={formatNumber(data?.context.epsForward, 2)} />
+            <MetricCard
+              label="Annual Div / Sh"
+              value={formatUsd(data?.context.trailingAnnualDividendRate)}
+            />
+            <MetricCard
+              label="52W Chg"
+              value={
+                data?.context.fiftyTwoWeekChangePercent == null
+                  ? "—"
+                  : `${formatNumber(data.context.fiftyTwoWeekChangePercent, 2)}%`
+              }
+            />
+            <MetricCard label="50D Avg" value={formatUsd(data?.context.fiftyDayAverage)} />
+            <MetricCard label="200D Avg" value={formatUsd(data?.context.twoHundredDayAverage)} />
+            <MetricCard label="Vol (day)" value={formatNumber(data?.context.regularMarketVolume, 0)} />
+            <MetricCard label="Avg Vol (10D)" value={formatNumber(data?.context.avgVolume10Day, 0)} />
+            <MetricCard label="Avg Vol (3M)" value={formatNumber(data?.context.avgVolume3Month, 0)} />
+            <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2">
+              <p className="text-xs text-(--muted)">52 Week Range</p>
+              <p className="text-sm font-medium">
+                {formatUsd(data?.metrics.week52Low)} - {formatUsd(data?.metrics.week52High)}
+              </p>
+              <div className="mt-2 h-2 rounded-full bg-(--card-border)">
+                <div className="relative h-2 rounded-full bg-sky-500/30" style={{ width: "100%" }}>
+                  <span
+                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-white/60 bg-emerald-300"
+                    style={{ left: `calc(${rangePct ?? 0}% - 6px)` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
+            <p className="text-xs text-(--muted)">Overview</p>
+            <p className="mt-1 text-sm text-foreground/90">
+              {data?.overview ?? "Overview unavailable right now."}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
+            <p className="text-xs text-(--muted)">Analyst Ratings</p>
+            <div className="mt-2">
+              {data?.analyst ? (
+                <AnalystBar analyst={data.analyst} />
+              ) : (
+                <p className="text-sm text-(--muted)">No analyst ratings available.</p>
+              )}
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
-        <p className="text-xs text-(--muted)">Overview</p>
-        <p className="mt-1 text-sm text-foreground/90">
-          {data?.overview ?? "Overview unavailable right now."}
-        </p>
-      </div>
+        <aside className="rounded-xl border border-(--card-border) bg-(--background) p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted)">News</p>
+            <button
+              type="button"
+              onClick={() => {
+                setNewsOffset(0);
+                setReloadToken((t) => t + 1);
+              }}
+              className="rounded-md border border-(--card-border) px-2 py-1 text-[11px] hover:bg-(--card)"
+            >
+              Refresh
+            </button>
+          </div>
 
-      <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
-        <p className="text-xs text-(--muted)">Analyst Ratings</p>
-        <div className="mt-2 grid grid-cols-5 gap-2 text-center text-xs">
-          <MetricCard label="Strong Buy" value={String(data?.analyst?.strongBuy ?? 0)} />
-          <MetricCard label="Buy" value={String(data?.analyst?.buy ?? 0)} />
-          <MetricCard label="Hold" value={String(data?.analyst?.hold ?? 0)} />
-          <MetricCard label="Sell" value={String(data?.analyst?.sell ?? 0)} />
-          <MetricCard label="Strong Sell" value={String(data?.analyst?.strongSell ?? 0)} />
-        </div>
-      </div>
+          <div className="mt-2 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+            {data?.news?.length ? (
+              data.news.map((item) => (
+                <div key={item.id} className="rounded-lg border border-(--card-border) bg-(--card) px-3 py-2">
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs underline-offset-2 hover:underline"
+                  >
+                    {item.title}
+                  </a>
+                  <p className="mt-1 text-[11px] text-(--muted)">
+                    {item.publisher}
+                    {item.publishedAt
+                      ? ` · ${new Date(item.publishedAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}`
+                      : ""}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-(--muted)">No recent news available.</p>
+            )}
+          </div>
 
-      <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
-        <p className="text-xs text-(--muted)">Related News</p>
-        {data?.news?.length ? (
-          <ul className="mt-2 space-y-2">
-            {data.news.map((item) => (
-              <li key={item.id} className="rounded-lg border border-(--card-border) bg-(--card) px-3 py-2">
-                <a
-                  href={item.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm underline-offset-2 hover:underline"
-                >
-                  {item.title}
-                </a>
-                <p className="mt-1 text-xs text-(--muted)">
-                  {item.publisher}
-                  {item.publishedAt
-                    ? ` · ${new Date(item.publishedAt).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}`
-                    : ""}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-(--muted)">No recent news available.</p>
-        )}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              disabled={
+                !data ||
+                data.newsMeta.offset + data.newsMeta.returned >= data.newsMeta.totalAvailable ||
+                data.newsMeta.fetched >= 50
+              }
+              onClick={() => setNewsOffset((o) => o + newsLimit)}
+              className="w-full rounded-md border border-(--card-border) px-2 py-1.5 text-[11px] hover:bg-(--card) disabled:opacity-50"
+            >
+              Load more
+            </button>
+          </div>
+        </aside>
       </div>
     </div>
   );
