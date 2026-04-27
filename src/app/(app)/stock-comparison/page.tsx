@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 
 type ComparedStock = {
@@ -21,30 +21,34 @@ type ComparedStock = {
 type MetricConfig = {
   key: keyof ComparedStock;
   label: string;
+  wins: "higher" | "lower";
   format: (value: number | null) => string;
 };
 
 const metricConfigs: MetricConfig[] = [
-  { key: "price", label: "Price", format: (v) => formatUsd(v) },
-  { key: "marketCap", label: "Market Cap", format: (v) => formatMarketCap(v) },
-  { key: "beta", label: "Beta", format: (v) => formatNumber(v, 2) },
-  { key: "trailingPE", label: "P/E", format: (v) => formatNumber(v, 2) },
-  { key: "forwardPE", label: "Forward P/E", format: (v) => formatNumber(v, 2) },
-  { key: "pegRatio", label: "PEG Ratio", format: (v) => formatNumber(v, 2) },
-  { key: "priceToBook", label: "Price/Book", format: (v) => formatNumber(v, 2) },
+  { key: "price", label: "Price", wins: "higher", format: (v) => formatUsd(v) },
+  { key: "marketCap", label: "Market Cap", wins: "higher", format: (v) => formatMarketCap(v) },
+  { key: "beta", label: "Beta", wins: "lower", format: (v) => formatNumber(v, 2) },
+  { key: "trailingPE", label: "P/E", wins: "lower", format: (v) => formatNumber(v, 2) },
+  { key: "forwardPE", label: "Forward P/E", wins: "lower", format: (v) => formatNumber(v, 2) },
+  { key: "pegRatio", label: "PEG Ratio", wins: "lower", format: (v) => formatNumber(v, 2) },
+  { key: "priceToBook", label: "Price/Book", wins: "lower", format: (v) => formatNumber(v, 2) },
   {
     key: "profitMargin",
     label: "Profit Margin",
+    wins: "higher",
     format: (v) => (v == null ? "—" : `${formatNumber(v * 100, 2)}%`),
   },
   {
     key: "returnOnEquity",
     label: "Return on Equity",
+    wins: "higher",
     format: (v) => (v == null ? "—" : `${formatNumber(v * 100, 2)}%`),
   },
   {
     key: "dividendYield",
     label: "Dividend Yield",
+    wins: "higher",
     format: (v) => (v == null ? "—" : `${formatNumber(v * 100, 2)}%`),
   },
 ];
@@ -101,6 +105,28 @@ export default function StockComparisonPage() {
       setLoading(false);
     }
   }
+
+  const winnerMap = useMemo(() => {
+    const winners = new Map<string, Set<string>>();
+    for (const metric of metricConfigs) {
+      const values = stocks
+        .map((stock) => ({ symbol: stock.symbol, value: stock[metric.key] }))
+        .filter((row): row is { symbol: string; value: number } => row.value != null);
+      if (values.length === 0) {
+        winners.set(metric.key, new Set());
+        continue;
+      }
+      const target =
+        metric.wins === "higher"
+          ? Math.max(...values.map((x) => x.value))
+          : Math.min(...values.map((x) => x.value));
+      winners.set(
+        metric.key,
+        new Set(values.filter((x) => x.value === target).map((x) => x.symbol))
+      );
+    }
+    return winners;
+  }, [stocks]);
 
   return (
     <div className="space-y-5">
@@ -178,35 +204,53 @@ export default function StockComparisonPage() {
             Add 2-3 symbols, then click Compare Stocks.
           </div>
         ) : (
-          metricConfigs.map((metric) => (
-            <article
-              key={metric.key}
-              className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm"
+          <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `minmax(150px, 1fr) repeat(${stocks.length}, minmax(180px, 1fr))` }}
             >
-              <div className="mb-3">
-                <span className="inline-flex rounded-full border border-(--card-border) bg-(--background) px-3 py-1 text-sm font-medium">
-                  {metric.label}
-                </span>
+              <div className="rounded-2xl border border-(--card-border) bg-(--background) px-3 py-2 text-sm font-semibold">
+                Metrics
               </div>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {stocks.map((stock) => {
-                  const value = stock[metric.key] as number | null;
-                  return (
-                    <div
-                      key={`${metric.key}-${stock.symbol}`}
-                      className="rounded-2xl border border-(--card-border) bg-(--background) px-3 py-2"
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-(--muted)">
-                        {stock.symbol}
-                      </p>
-                      <p className="text-sm font-medium">{metric.format(value)}</p>
-                      <p className="truncate text-xs text-(--muted)">{stock.name}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-          ))
+              {stocks.map((stock) => (
+                <div
+                  key={`head-${stock.symbol}`}
+                  className="rounded-2xl border border-(--card-border) bg-(--background) px-3 py-2"
+                >
+                  <p className="text-sm font-semibold">{stock.symbol}</p>
+                  <p className="truncate text-xs text-(--muted)">{stock.name}</p>
+                </div>
+              ))}
+
+              {metricConfigs.map((metric) => (
+                <Fragment key={`row-${metric.key}`}>
+                  <div
+                    key={`metric-${metric.key}`}
+                    className="rounded-2xl border border-(--card-border) bg-(--background) px-3 py-2 text-sm font-medium"
+                  >
+                    {metric.label}
+                  </div>
+                  {stocks.map((stock) => {
+                    const value = stock[metric.key] as number | null;
+                    const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
+                    return (
+                      <div
+                        key={`${metric.key}-${stock.symbol}`}
+                        className={
+                          "rounded-2xl border px-3 py-2 text-sm " +
+                          (isWinner
+                            ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-200"
+                            : "border-(--card-border) bg-(--background)")
+                        }
+                      >
+                        {metric.format(value)}
+                      </div>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </div>
+          </div>
         )}
       </section>
     </div>

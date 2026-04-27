@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchQuote } from "@/lib/market";
-
-type RawField = { raw?: number | null } | null | undefined;
+import YahooFinance from "yahoo-finance2";
 
 type Fundamentals = {
   beta: number | null;
@@ -14,138 +13,27 @@ type Fundamentals = {
   dividendYield: number | null;
 };
 
-type YahooQuoteResult = {
-  beta?: number;
-  trailingPE?: number;
-  forwardPE?: number;
-  pegRatio?: number;
-  priceToBook?: number;
-  profitMargins?: number;
-  returnOnEquity?: number;
-  dividendYield?: number;
-};
+const yahoo = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
-type YahooSummaryResponse = {
-  quoteSummary?: {
-    result?: Array<{
-      defaultKeyStatistics?: {
-        beta?: RawField;
-        pegRatio?: RawField;
-        priceToBook?: RawField;
-      };
-      summaryDetail?: {
-        beta?: RawField;
-        trailingPE?: RawField;
-        forwardPE?: RawField;
-        dividendYield?: RawField;
-      };
-      financialData?: {
-        profitMargins?: RawField;
-        returnOnEquity?: RawField;
-      };
-    }>;
-  };
-};
-
-type SummaryRow = NonNullable<
-  NonNullable<YahooSummaryResponse["quoteSummary"]>["result"]
->[number];
-
-type YahooQuoteResponse = {
-  quoteResponse?: {
-    result?: YahooQuoteResult[];
-  };
-};
-
-function toNumber(field: RawField): number | null {
-  const value = field?.raw;
+function toNumber(value: number | null | undefined): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   return Number(value);
 }
 
 async function fetchFundamentals(symbol: string): Promise<Fundamentals> {
-  const quoteUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(
-    symbol
-  )}`;
-  const quoteRes = await fetch(quoteUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      Accept: "application/json,text/plain,*/*",
-    },
-    cache: "no-store",
+  const summary = await yahoo.quoteSummary(symbol, {
+    modules: ["summaryDetail", "defaultKeyStatistics", "financialData"],
   });
 
-  let quoteRow: YahooQuoteResult | undefined;
-  if (quoteRes.ok) {
-    const quoteData = (await quoteRes.json()) as YahooQuoteResponse;
-    quoteRow = quoteData.quoteResponse?.result?.[0];
-  }
-
-  const summaryUrls = [
-    `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
-      symbol
-    )}?modules=defaultKeyStatistics,summaryDetail,financialData`,
-    `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
-      symbol
-    )}?modules=defaultKeyStatistics,summaryDetail,financialData`,
-  ];
-
-  let row: SummaryRow | undefined;
-
-  for (const url of summaryUrls) {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Accept: "application/json,text/plain,*/*",
-      },
-      cache: "no-store",
-    });
-    if (!res.ok) continue;
-    const data = (await res.json()) as YahooSummaryResponse;
-    row = data.quoteSummary?.result?.[0];
-    if (row) break;
-  }
-
   return {
-    beta:
-      toNumber(row?.defaultKeyStatistics?.beta) ??
-      toNumber(row?.summaryDetail?.beta) ??
-      (quoteRow?.beta != null && Number.isFinite(quoteRow.beta) ? quoteRow.beta : null),
-    trailingPE:
-      toNumber(row?.summaryDetail?.trailingPE) ??
-      (quoteRow?.trailingPE != null && Number.isFinite(quoteRow.trailingPE)
-        ? quoteRow.trailingPE
-        : null),
-    forwardPE:
-      toNumber(row?.summaryDetail?.forwardPE) ??
-      (quoteRow?.forwardPE != null && Number.isFinite(quoteRow.forwardPE)
-        ? quoteRow.forwardPE
-        : null),
-    pegRatio:
-      toNumber(row?.defaultKeyStatistics?.pegRatio) ??
-      (quoteRow?.pegRatio != null && Number.isFinite(quoteRow.pegRatio) ? quoteRow.pegRatio : null),
-    priceToBook:
-      toNumber(row?.defaultKeyStatistics?.priceToBook) ??
-      (quoteRow?.priceToBook != null && Number.isFinite(quoteRow.priceToBook)
-        ? quoteRow.priceToBook
-        : null),
-    profitMargin:
-      toNumber(row?.financialData?.profitMargins) ??
-      (quoteRow?.profitMargins != null && Number.isFinite(quoteRow.profitMargins)
-        ? quoteRow.profitMargins
-        : null),
-    returnOnEquity:
-      toNumber(row?.financialData?.returnOnEquity) ??
-      (quoteRow?.returnOnEquity != null && Number.isFinite(quoteRow.returnOnEquity)
-        ? quoteRow.returnOnEquity
-        : null),
-    dividendYield:
-      toNumber(row?.summaryDetail?.dividendYield) ??
-      (quoteRow?.dividendYield != null && Number.isFinite(quoteRow.dividendYield)
-        ? quoteRow.dividendYield
-        : null),
+    beta: toNumber(summary.defaultKeyStatistics?.beta ?? summary.summaryDetail?.beta),
+    trailingPE: toNumber(summary.summaryDetail?.trailingPE),
+    forwardPE: toNumber(summary.summaryDetail?.forwardPE),
+    pegRatio: toNumber(summary.defaultKeyStatistics?.pegRatio),
+    priceToBook: toNumber(summary.defaultKeyStatistics?.priceToBook),
+    profitMargin: toNumber(summary.financialData?.profitMargins),
+    returnOnEquity: toNumber(summary.financialData?.returnOnEquity),
+    dividendYield: toNumber(summary.summaryDetail?.dividendYield),
   };
 }
 
