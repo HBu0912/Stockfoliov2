@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 
 type ComparedStock = {
@@ -21,33 +21,79 @@ type ComparedStock = {
 type MetricConfig = {
   key: keyof ComparedStock;
   label: string;
+  description: string;
   wins: "higher" | "lower";
   format: (value: number | null) => string;
 };
 
 const metricConfigs: MetricConfig[] = [
-  { key: "price", label: "Price", wins: "higher", format: (v) => formatUsd(v) },
-  { key: "marketCap", label: "Market Cap", wins: "higher", format: (v) => formatMarketCap(v) },
-  { key: "beta", label: "Beta", wins: "lower", format: (v) => formatNumber(v, 2) },
-  { key: "trailingPE", label: "P/E", wins: "lower", format: (v) => formatNumber(v, 2) },
-  { key: "forwardPE", label: "Forward P/E", wins: "lower", format: (v) => formatNumber(v, 2) },
-  { key: "pegRatio", label: "PEG Ratio", wins: "lower", format: (v) => formatNumber(v, 2) },
-  { key: "priceToBook", label: "Price/Book", wins: "lower", format: (v) => formatNumber(v, 2) },
+  {
+    key: "price",
+    label: "Price",
+    description: "Current market price per share.",
+    wins: "higher",
+    format: (v) => formatUsd(v),
+  },
+  {
+    key: "marketCap",
+    label: "Market Cap",
+    description: "Total company equity value (share price times shares outstanding).",
+    wins: "higher",
+    format: (v) => formatMarketCap(v),
+  },
+  {
+    key: "beta",
+    label: "Beta",
+    description: "How volatile the stock is relative to the market.",
+    wins: "lower",
+    format: (v) => formatNumber(v, 2),
+  },
+  {
+    key: "trailingPE",
+    label: "P/E",
+    description: "Price divided by trailing 12-month earnings per share.",
+    wins: "lower",
+    format: (v) => formatNumber(v, 2),
+  },
+  {
+    key: "forwardPE",
+    label: "Forward P/E",
+    description: "Price divided by expected next-12-month earnings per share.",
+    wins: "lower",
+    format: (v) => formatNumber(v, 2),
+  },
+  {
+    key: "pegRatio",
+    label: "PEG Ratio",
+    description: "P/E adjusted by expected earnings growth rate.",
+    wins: "lower",
+    format: (v) => formatNumber(v, 2),
+  },
+  {
+    key: "priceToBook",
+    label: "Price/Book",
+    description: "Market price relative to book value per share.",
+    wins: "lower",
+    format: (v) => formatNumber(v, 2),
+  },
   {
     key: "profitMargin",
     label: "Profit Margin",
+    description: "Share of revenue kept as net profit.",
     wins: "higher",
     format: (v) => (v == null ? "—" : `${formatNumber(v * 100, 2)}%`),
   },
   {
     key: "returnOnEquity",
     label: "Return on Equity",
+    description: "Net income generated per dollar of shareholder equity.",
     wins: "higher",
     format: (v) => (v == null ? "—" : `${formatNumber(v * 100, 2)}%`),
   },
   {
     key: "dividendYield",
     label: "Dividend Yield",
+    description: "Annual dividend payout as a percentage of share price.",
     wins: "higher",
     format: (v) => (v == null ? "—" : `${formatNumber(v * 100, 2)}%`),
   },
@@ -205,50 +251,65 @@ export default function StockComparisonPage() {
           </div>
         ) : (
           <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-            <div
-              className="grid gap-2"
-              style={{ gridTemplateColumns: `minmax(150px, 1fr) repeat(${stocks.length}, minmax(180px, 1fr))` }}
-            >
-              <div className="rounded-2xl border border-(--card-border) bg-(--background) px-3 py-2 text-sm font-semibold">
-                Metrics
-              </div>
-              {stocks.map((stock) => (
-                <div
-                  key={`head-${stock.symbol}`}
-                  className="rounded-2xl border border-(--card-border) bg-(--background) px-3 py-2"
-                >
-                  <p className="text-sm font-semibold">{stock.symbol}</p>
-                  <p className="truncate text-xs text-(--muted)">{stock.name}</p>
-                </div>
-              ))}
-
-              {metricConfigs.map((metric) => (
-                <Fragment key={`row-${metric.key}`}>
-                  <div
-                    key={`metric-${metric.key}`}
-                    className="rounded-2xl border border-(--card-border) bg-(--background) px-3 py-2 text-sm font-medium"
-                  >
-                    {metric.label}
-                  </div>
-                  {stocks.map((stock) => {
-                    const value = stock[metric.key] as number | null;
-                    const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
-                    return (
-                      <div
-                        key={`${metric.key}-${stock.symbol}`}
-                        className={
-                          "rounded-2xl border px-3 py-2 text-sm " +
-                          (isWinner
-                            ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-200"
-                            : "border-(--card-border) bg-(--background)")
-                        }
+            <div className="overflow-x-auto">
+              <table className="min-w-full table-fixed border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className="w-[170px] whitespace-nowrap border border-(--card-border) bg-(--background) px-3 py-2 text-center font-semibold">
+                      Metrics
+                    </th>
+                    {stocks.map((stock) => (
+                      <th
+                        key={`head-${stock.symbol}`}
+                        className="border border-(--card-border) bg-(--background) px-3 py-2 text-center"
                       >
-                        {metric.format(value)}
-                      </div>
-                    );
-                  })}
-                </Fragment>
-              ))}
+                        <p className="text-sm font-semibold">{stock.symbol}</p>
+                        <p className="truncate text-xs text-(--muted)">{stock.name}</p>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {metricConfigs.map((metric) => (
+                    <tr key={`row-${metric.key}`}>
+                      <td className="w-[170px] whitespace-nowrap border border-(--card-border) bg-(--background) px-3 py-2 text-center font-medium">
+                        <span className="inline-flex items-center gap-1">
+                          {metric.label}
+                          <span className="group relative inline-flex">
+                            <button
+                              type="button"
+                              className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
+                              aria-label={`${metric.label} description`}
+                            >
+                              i
+                            </button>
+                            <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 w-56 -translate-x-1/2 rounded-md border border-(--card-border) bg-(--background) px-2 py-1 text-left text-xs font-normal text-(--muted) opacity-0 shadow group-hover:opacity-100">
+                              {metric.description}
+                            </span>
+                          </span>
+                        </span>
+                      </td>
+                      {stocks.map((stock) => {
+                        const value = stock[metric.key] as number | null;
+                        const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
+                        return (
+                          <td
+                            key={`${metric.key}-${stock.symbol}`}
+                            className={
+                              "border px-3 py-2 text-center " +
+                              (isWinner
+                                ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-200 font-semibold"
+                                : "border-(--card-border) bg-(--background)")
+                            }
+                          >
+                            {metric.format(value)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

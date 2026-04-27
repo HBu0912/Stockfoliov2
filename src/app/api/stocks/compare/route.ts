@@ -13,6 +13,11 @@ type Fundamentals = {
   dividendYield: number | null;
 };
 
+type Identity = {
+  name: string | null;
+  marketCap: number | null;
+};
+
 const yahoo = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 function toNumber(value: number | null | undefined): number | null {
@@ -37,6 +42,14 @@ async function fetchFundamentals(symbol: string): Promise<Fundamentals> {
   };
 }
 
+async function fetchIdentity(symbol: string): Promise<Identity> {
+  const q = await yahoo.quote(symbol);
+  return {
+    name: q.longName ?? q.shortName ?? q.displayName ?? null,
+    marketCap: toNumber(q.marketCap),
+  };
+}
+
 async function fetchComparisonRow(symbol: string) {
   const quotePromise = fetchQuote(symbol);
   const fundamentalsPromise = fetchFundamentals(symbol).catch(() => ({
@@ -49,14 +62,29 @@ async function fetchComparisonRow(symbol: string) {
     returnOnEquity: null,
     dividendYield: null,
   }));
+  const identityPromise = fetchIdentity(symbol).catch(() => ({
+    name: null,
+    marketCap: null,
+  }));
 
-  const [quote, fundamentals] = await Promise.all([quotePromise, fundamentalsPromise]);
+  const [quote, fundamentals, identity] = await Promise.all([
+    quotePromise,
+    fundamentalsPromise,
+    identityPromise,
+  ]);
+
+  const marketCap = quote.marketCap ?? identity.marketCap;
+  const name =
+    quote.name && quote.name.toUpperCase() !== quote.symbol.toUpperCase()
+      ? quote.name
+      : identity.name ?? quote.name;
+
   return {
     symbol: quote.symbol,
-    name: quote.name,
+    name,
     price: quote.price,
-    marketCap: quote.marketCap,
-    marketCapText: quote.marketCapText,
+    marketCap,
+    marketCapText: quote.marketCapText ?? null,
     ...fundamentals,
   };
 }
