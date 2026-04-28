@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { fetchQuote } from "@/lib/market";
+import { fetchQuoteWithYahooMarketData } from "@/lib/yahoo-quote-enrich";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -17,13 +17,13 @@ export async function POST() {
   }
 
   const uniqueSymbols = [...new Set(holdings.map((h) => h.symbol.toUpperCase()))];
-  const quoteMap = new Map<string, Awaited<ReturnType<typeof fetchQuote>>>();
+  const quoteMap = new Map<string, Awaited<ReturnType<typeof fetchQuoteWithYahooMarketData>>>();
   const failed = new Set<string>();
 
   await Promise.all(
     uniqueSymbols.map(async (symbol) => {
       try {
-        const q = await fetchQuote(symbol);
+        const q = await fetchQuoteWithYahooMarketData(symbol);
         quoteMap.set(symbol, q);
       } catch {
         failed.add(symbol);

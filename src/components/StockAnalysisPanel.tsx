@@ -48,6 +48,7 @@ type Payload = {
     returned: number;
     totalAvailable: number;
     fetched: number;
+    hasMore: boolean;
   };
   context: {
     avgVolume10Day: number | null;
@@ -129,35 +130,28 @@ function PriceTooltip({
   );
 }
 
-function AnalystBar({ analyst }: { analyst: NonNullable<Payload["analyst"]> }) {
-  const segments = [
-    { key: "strongBuy", label: "SB", count: analyst.strongBuy, className: "bg-emerald-500" },
-    { key: "buy", label: "B", count: analyst.buy, className: "bg-lime-400" },
-    { key: "hold", label: "H", count: analyst.hold, className: "bg-yellow-300 text-black" },
-    { key: "sell", label: "S", count: analyst.sell, className: "bg-orange-500" },
-    { key: "strongSell", label: "SS", count: analyst.strongSell, className: "bg-red-600" },
+function AnalystRatingBubbles({ analyst }: { analyst: NonNullable<Payload["analyst"]> }) {
+  const items = [
+    { key: "strongBuy", label: "Strong buy", count: analyst.strongBuy, bubble: "bg-green-800 text-white" },
+    { key: "buy", label: "Buy", count: analyst.buy, bubble: "bg-green-300 text-green-950" },
+    { key: "hold", label: "Hold", count: analyst.hold, bubble: "bg-yellow-300 text-yellow-950" },
+    { key: "sell", label: "Sell", count: analyst.sell, bubble: "bg-orange-500 text-white" },
+    { key: "strongSell", label: "Strong sell", count: analyst.strongSell, bubble: "bg-red-600 text-white" },
   ] as const;
-  const total = segments.reduce((sum, s) => sum + Math.max(0, s.count), 0) || 1;
+
   return (
-    <div className="space-y-2">
-      <div className="flex h-3 overflow-hidden rounded-full border border-(--card-border)">
-        {segments.map((s) => (
-          <div
-            key={s.key}
-            className={s.className}
-            style={{ width: `${(Math.max(0, s.count) / total) * 100}%` }}
-            title={`${s.label}: ${s.count}`}
-          />
-        ))}
-      </div>
-      <div className="grid grid-cols-5 gap-2 text-center text-[11px] text-(--muted)">
-        {segments.map((s) => (
-          <div key={s.key}>
-            <p className="font-semibold text-foreground">{s.count}</p>
-            <p>{s.label}</p>
-          </div>
-        ))}
-      </div>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      {items.map((item) => (
+        <div
+          key={item.key}
+          className={
+            "rounded-2xl border border-(--card-border) px-3 py-3 text-center shadow-sm " + item.bubble
+          }
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-90">{item.label}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{item.count}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -201,7 +195,22 @@ export function StockAnalysisPanel({
           if (!cancelled) setError(json.error ?? "Could not load stock analysis.");
           return;
         }
-        if (!cancelled) setData(json);
+        if (!cancelled) {
+          const meta = json.newsMeta;
+          const hasMore =
+            typeof meta?.hasMore === "boolean"
+              ? meta.hasMore
+              : (meta?.totalAvailable ?? 0) > (meta?.offset ?? 0) + (meta?.limit ?? newsLimit);
+          setData({
+            ...json,
+            newsMeta: meta
+              ? {
+                  ...meta,
+                  hasMore,
+                }
+              : json.newsMeta,
+          });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -310,7 +319,7 @@ export function StockAnalysisPanel({
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-3">
           <div className="flex flex-wrap gap-1">
             {intervals.map((k) => (
@@ -337,7 +346,7 @@ export function StockAnalysisPanel({
 
           <div
             ref={chartWrapRef}
-            className="h-56 rounded-xl border border-(--card-border) bg-(--background) p-2"
+            className="h-80 rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96"
             onPointerDown={(e) => {
               const idx = idxFromClientX(e.clientX);
               if (idx == null) return;
@@ -419,7 +428,7 @@ export function StockAnalysisPanel({
             </div>
           )}
 
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             <MetricCard label="Market Cap" value={formatMarketCap(data?.metrics.marketCap)} />
             <MetricCard label="Sector" value={data?.sector ?? "—"} />
             <MetricCard label="Industry" value={data?.industry ?? "—"} />
@@ -483,7 +492,7 @@ export function StockAnalysisPanel({
             <p className="text-xs text-(--muted)">Analyst Ratings</p>
             <div className="mt-2">
               {data?.analyst ? (
-                <AnalystBar analyst={data.analyst} />
+                <AnalystRatingBubbles analyst={data.analyst} />
               ) : (
                 <p className="text-sm text-(--muted)">No analyst ratings available.</p>
               )}
@@ -506,7 +515,7 @@ export function StockAnalysisPanel({
             </button>
           </div>
 
-          <div className="mt-2 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+          <div className="mt-2 max-h-[560px] space-y-2 overflow-y-auto pr-1">
             {data?.news?.length ? (
               data.news.map((item) => (
                 <div key={item.id} className="rounded-lg border border-(--card-border) bg-(--card) px-3 py-2">
@@ -539,11 +548,7 @@ export function StockAnalysisPanel({
           <div className="mt-2 flex items-center justify-between gap-2">
             <button
               type="button"
-              disabled={
-                !data ||
-                data.newsMeta.offset + data.newsMeta.returned >= data.newsMeta.totalAvailable ||
-                data.newsMeta.fetched >= 50
-              }
+              disabled={!data || !data.newsMeta.hasMore}
               onClick={() => setNewsOffset((o) => o + newsLimit)}
               className="w-full rounded-md border border-(--card-border) px-2 py-1.5 text-[11px] hover:bg-(--card) disabled:opacity-50"
             >

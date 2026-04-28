@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recordHoldingPositionChange } from "@/lib/record-feed";
 import { NextResponse } from "next/server";
+import { fetchQuoteWithYahooMarketData } from "@/lib/yahoo-quote-enrich";
 
 export async function POST(req: Request) {
   const s = await getSession();
@@ -37,15 +38,29 @@ export async function POST(req: Request) {
     );
     return NextResponse.json({ holding: h, merged: true, mode: "set-total" });
   }
+  let quoteName = sym;
+  let quotePrice: number | null = null;
+  let quoteCap: number | null = null;
+  let quoteCapText: string | null = null;
+  try {
+    const q = await fetchQuoteWithYahooMarketData(sym);
+    quoteName = q.name;
+    quotePrice = q.price;
+    quoteCap = q.marketCap;
+    quoteCapText = q.marketCapText;
+  } catch {
+    // Leave nulls; user can refresh prices later.
+  }
+
   const h = await prisma.holding.create({
     data: {
       accountId: acc.id,
       symbol: sym,
-      name: sym,
+      name: quoteName,
       shares,
-      lastPrice: null,
-      marketCap: null,
-      marketCapText: null,
+      lastPrice: quotePrice,
+      marketCap: quoteCap,
+      marketCapText: quoteCapText,
     },
   });
   await recordHoldingPositionChange(s.userId, 0, shares, h.symbol, h.name, acc.id, acc.name);

@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { fetchQuote } from "@/lib/market";
+import { fetchQuoteWithYahooMarketData } from "@/lib/yahoo-quote-enrich";
 import { prisma } from "@/lib/prisma";
 import { deleteHoldingWithFeed, recordHoldingPositionChange } from "@/lib/record-feed";
 import { NextResponse } from "next/server";
@@ -21,7 +21,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (body.refresh) {
     let q;
     try {
-      q = await fetchQuote(holding.symbol);
+      q = await fetchQuoteWithYahooMarketData(holding.symbol);
     } catch (e) {
       const m = e instanceof Error ? e.message : "Could not refresh quote";
       return NextResponse.json({ error: m }, { status: 400 });

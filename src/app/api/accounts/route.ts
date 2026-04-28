@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { fillHoldingsMarketCapFromYahoo } from "@/lib/holdings-market-cap-fill";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -12,7 +13,13 @@ export async function GET() {
       holdings: true,
     },
   });
-  return NextResponse.json({ accounts });
+  const filled = await Promise.all(
+    accounts.map(async (a) => ({
+      ...a,
+      holdings: await fillHoldingsMarketCapFromYahoo(a.holdings),
+    }))
+  );
+  return NextResponse.json({ accounts: filled });
 }
 
 export async function POST(req: Request) {

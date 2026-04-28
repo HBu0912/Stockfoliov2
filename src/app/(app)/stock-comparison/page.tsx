@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 import { TickerSymbol } from "@/components/TickerSymbol";
-import { StockComparisonOverlayChart } from "@/components/StockComparisonOverlayChart";
+import { StockComparisonOverlayChart, type CompareIntervalKey } from "@/components/StockComparisonOverlayChart";
 
 type ComparedStock = {
   symbol: string;
@@ -105,12 +105,15 @@ function normalizeTicker(text: string): string {
   return text.trim().toUpperCase().replace(/[^A-Z0-9.-]/g, "");
 }
 
+const compareIntervals: CompareIntervalKey[] = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"];
+
 export default function StockComparisonPage() {
   const [tickerInput, setTickerInput] = useState("");
   const [tickers, setTickers] = useState<string[]>([]);
   const [stocks, setStocks] = useState<ComparedStock[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chartInterval, setChartInterval] = useState<CompareIntervalKey>("1M");
 
   const canCompare = tickers.length >= 2 && tickers.length <= 3;
 
@@ -250,75 +253,119 @@ export default function StockComparisonPage() {
             Add 2-3 symbols, then click Compare Stocks.
           </div>
         ) : (
-          <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
-            <div
-              className="grid gap-1.5"
-              style={{ gridTemplateColumns: `minmax(160px,0.8fr) repeat(${stocks.length}, minmax(0,1fr))` }}
-            >
-              <div className="rounded-xl border border-(--card-border) bg-(--background) px-2.5 py-2 text-center text-sm font-semibold">
-                Metrics
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-(--card-border) bg-(--card) px-3 py-2 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-(--muted)">Chart window</p>
+              <div className="flex flex-wrap gap-1">
+                {compareIntervals.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setChartInterval(k)}
+                    className={
+                      "rounded-md px-2 py-1 text-xs " +
+                      (chartInterval === k
+                        ? "bg-(--accent) text-(--accent-foreground)"
+                        : "border border-(--card-border) hover:bg-(--background)")
+                    }
+                  >
+                    {k}
+                  </button>
+                ))}
               </div>
-              {stocks.map((stock) => (
-                <div
-                  key={`head-${stock.symbol}`}
-                  className="rounded-xl border border-(--card-border) bg-(--background) px-2.5 py-2 text-center"
-                >
-                  <p className="text-sm font-semibold leading-tight">
-                    <TickerSymbol symbol={stock.symbol} className="underline-offset-2 hover:underline" />
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] font-normal leading-tight text-(--muted)">
-                    {stock.name}
-                  </p>
-                </div>
-              ))}
+            </div>
 
-              {metricConfigs.map((metric) => (
-                <div
-                  key={`metric-${metric.key}`}
-                  className="contents"
-                >
-                  <div className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-1.5 text-center text-sm font-medium">
-                    <span className="inline-flex items-center gap-1">
-                      {metric.label}
-                      <span className="group relative inline-flex">
-                        <button
-                          type="button"
-                          className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
-                          aria-label={`${metric.label} description`}
-                        >
-                          i
-                        </button>
-                        <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 w-48 -translate-x-1/2 rounded-md border border-(--card-border) bg-(--background) px-2 py-1 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
-                          {metric.description}
-                        </span>
-                      </span>
-                    </span>
-                  </div>
-                  {stocks.map((stock) => {
-                    const value = stock[metric.key] as number | null;
-                    const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
-                    return (
-                      <div
-                        key={`${metric.key}-${stock.symbol}`}
-                        className={
-                          "rounded-xl border px-2 py-1.5 text-center text-sm " +
-                          (isWinner
-                            ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-200 font-semibold"
-                            : "border-(--card-border) bg-(--background)")
-                        }
-                      >
-                        {metric.format(value)}
-                      </div>
-                    );
-                  })}
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+              {stocks.length >= 2 ? (
+                <StockComparisonOverlayChart
+                  symbols={stocks.map((s) => s.symbol)}
+                  interval={chartInterval}
+                  heightClassName="h-[420px] lg:h-[520px]"
+                />
+              ) : (
+                <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-(--card-border) bg-(--card) p-6 text-center text-sm text-(--muted) shadow-sm lg:min-h-[520px]">
+                  Add one more ticker to see the overlay performance chart.
                 </div>
-              ))}
+              )}
+
+              <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold">Metrics</p>
+                  <p className="text-xs text-(--muted)">Green highlights “best” per row</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div
+                    className="grid gap-2"
+                    style={{ gridTemplateColumns: `140px repeat(${stocks.length}, minmax(0,1fr))` }}
+                  >
+                    <div className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-xs font-semibold text-(--muted)">
+                      Metric
+                    </div>
+                    {stocks.map((stock) => (
+                      <div
+                        key={`head-${stock.symbol}`}
+                        className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-center"
+                      >
+                        <p className="text-sm font-semibold leading-tight">
+                          <TickerSymbol symbol={stock.symbol} className="underline-offset-2 hover:underline" />
+                        </p>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-tight text-(--muted)">
+                          {stock.name}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="divide-y divide-(--card-border) rounded-2xl border border-(--card-border) bg-(--background)">
+                    {metricConfigs.map((metric) => (
+                      <div
+                        key={`metric-${metric.key}`}
+                        className="grid items-stretch gap-2 px-2 py-2"
+                        style={{ gridTemplateColumns: `140px repeat(${stocks.length}, minmax(0,1fr))` }}
+                      >
+                        <div className="flex items-center gap-1 text-xs font-semibold text-(--muted)">
+                          <span className="truncate">{metric.label}</span>
+                          <span className="group relative inline-flex shrink-0">
+                            <button
+                              type="button"
+                              className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
+                              aria-label={`${metric.label} description`}
+                            >
+                              i
+                            </button>
+                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-(--card-border) bg-(--card) px-2 py-1 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
+                              {metric.description}
+                            </span>
+                          </span>
+                        </div>
+
+                        {stocks.map((stock) => {
+                          const value = stock[metric.key] as number | null;
+                          const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
+                          return (
+                            <div
+                              key={`${metric.key}-${stock.symbol}`}
+                              className={
+                                "flex min-h-[44px] items-center justify-center rounded-xl border px-2 text-center text-sm " +
+                                (isWinner
+                                  ? "border-emerald-400/70 bg-emerald-500/10 text-emerald-200 font-semibold"
+                                  : "border-transparent bg-(--card) text-foreground/90")
+                              }
+                            >
+                              {metric.format(value)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
       </section>
-
-      {stocks.length >= 2 && <StockComparisonOverlayChart symbols={stocks.map((s) => s.symbol)} />}
     </div>
   );
 }

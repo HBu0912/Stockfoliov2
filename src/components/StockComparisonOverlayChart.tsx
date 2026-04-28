@@ -4,20 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
 
-const intervals = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"] as const;
-type IntervalKey = (typeof intervals)[number];
+export type CompareIntervalKey = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "5Y" | "ALL";
 
 type ChartPoint = { at: string; close: number };
 
 type SeriesPayload = {
   symbol: string;
-  interval: IntervalKey;
+  interval: CompareIntervalKey;
   chart: ChartPoint[];
 };
 
 const palette = ["#34d399", "#60a5fa", "#fbbf24"];
 
-function formatXAxis(dateISO: string, interval: IntervalKey): string {
+function formatXAxis(dateISO: string, interval: CompareIntervalKey): string {
   const d = new Date(dateISO);
   if (interval === "1D" || interval === "1W") {
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -39,8 +38,15 @@ function normalizedMap(points: ChartPoint[]): Map<string, number> {
   return map;
 }
 
-export function StockComparisonOverlayChart({ symbols }: { symbols: string[] }) {
-  const [interval, setInterval] = useState<IntervalKey>("1M");
+export function StockComparisonOverlayChart({
+  symbols,
+  interval,
+  heightClassName = "h-80",
+}: {
+  symbols: string[];
+  interval: CompareIntervalKey;
+  heightClassName?: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [series, setSeries] = useState<SeriesPayload[]>([]);
@@ -92,31 +98,12 @@ export function StockComparisonOverlayChart({ symbols }: { symbols: string[] }) 
 
   return (
     <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold">Overlay performance</h3>
-          <p className="text-xs text-(--muted)">Normalized to 0% at the start of the selected window.</p>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {intervals.map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setInterval(k)}
-              className={
-                "rounded-md px-2 py-1 text-xs " +
-                (interval === k
-                  ? "bg-(--accent) text-(--accent-foreground)"
-                  : "border border-(--card-border) hover:bg-(--background)")
-              }
-            >
-              {k}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h3 className="text-sm font-semibold">Overlay performance</h3>
+        <p className="text-xs text-(--muted)">Normalized to 0% at the start of the selected window.</p>
       </div>
 
-      <div className="mt-2 h-56 rounded-xl border border-(--card-border) bg-(--background) p-2">
+      <div className={"mt-2 rounded-xl border border-(--card-border) bg-(--background) p-2 " + heightClassName}>
         {loading ? (
           <p className="px-2 py-3 text-sm text-(--muted)">Loading overlay...</p>
         ) : error ? (

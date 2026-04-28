@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchQuote } from "@/lib/market";
+import { fetchQuoteWithYahooMarketData } from "@/lib/yahoo-quote-enrich";
 import YahooFinance from "yahoo-finance2";
 import { mergeFundamentals } from "@/lib/yahoo-fundamentals";
 
@@ -57,7 +57,7 @@ async function fetchIdentity(symbol: string): Promise<Identity> {
 }
 
 async function fetchComparisonRow(symbol: string) {
-  const quotePromise = fetchQuote(symbol);
+  const quotePromise = fetchQuoteWithYahooMarketData(symbol);
   const fundamentalsPromise = fetchFundamentals(symbol).catch(() => ({
     beta: null,
     trailingPE: null,

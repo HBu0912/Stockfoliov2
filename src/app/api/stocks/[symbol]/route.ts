@@ -64,9 +64,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       : null;
     const { period1, period2, chartInterval } = chartWindow(interval, firstTradeDate);
 
-    const newsFetchCount = Math.min(50, newsOffset + newsLimit);
+    const desiredEnd = newsOffset + newsLimit;
 
-    const [summary, chart, search] = await Promise.all([
+    const [summary, chart] = await Promise.all([
       yahoo.quoteSummary(symbol, {
         modules: [
           "summaryDetail",
@@ -77,8 +77,61 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
         ],
       }),
       yahoo.chart(symbol, { period1, period2, interval: chartInterval }),
-      yahoo.search(symbol, { quotesCount: 0, newsCount: newsFetchCount }).catch(() => null),
     ]);
+
+    let newsFetchCount = Math.min(200, Math.max(20, desiredEnd));
+    let search = await yahoo.search(symbol, { quotesCount: 0, newsCount: newsFetchCount }).catch(() => null);
+    let newsItems = (search?.news ?? [])
+      .map((item) => ({
+        id: item.uuid,
+        title: item.title,
+        publisher: item.publisher,
+        link: item.link,
+        publishedAt: item.providerPublishTime?.toISOString() ?? null,
+      }))
+      .sort((a, b) => {
+        const at = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const bt = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return bt - at;
+      });
+
+    const dedupeById = (items: typeof newsItems) => {
+      const seen = new Set<string>();
+      const out: typeof newsItems = [];
+      for (const n of items) {
+        const key = (n.id ?? "").trim() || n.link;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(n);
+      }
+      return out;
+    };
+
+    newsItems = dedupeById(newsItems);
+
+    // If the user is paging deep, Yahoo may need a larger `newsCount` than our first request.
+    let guard = 0;
+    while (newsItems.length < desiredEnd && newsFetchCount < 200 && guard < 4) {
+      const prevLen = newsItems.length;
+      newsFetchCount = Math.min(200, Math.max(newsFetchCount + 25, desiredEnd + 10));
+      search = await yahoo.search(symbol, { quotesCount: 0, newsCount: newsFetchCount }).catch(() => null);
+      const merged = dedupeById(
+        [...newsItems, ...((search?.news ?? []).map((item) => ({
+          id: item.uuid,
+          title: item.title,
+          publisher: item.publisher,
+          link: item.link,
+          publishedAt: item.providerPublishTime?.toISOString() ?? null,
+        })) ?? [])]
+      );
+      newsItems = merged.sort((a, b) => {
+        const at = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const bt = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return bt - at;
+      });
+      if (newsItems.length === prevLen) break;
+      guard += 1;
+    }
 
     const points =
       chart.quotes
@@ -97,6 +150,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       first != null && last != null && first !== 0 ? ((last - first) / first) * 100 : null;
 
     const fundamentals = mergeFundamentals(quote, summary);
+
+    const pagedNews = newsItems.slice(0, desiredEnd);
+    const hasMoreNews = newsItems.length > desiredEnd;
 
     return NextResponse.json({
       symbol,
@@ -119,22 +175,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
             strongSell: summary.recommendationTrend.trend[0].strongSell ?? 0,
           }
         : null,
-      news:
-        search?.news
-          ?.slice(newsOffset, newsOffset + newsLimit)
-          .map((item) => ({
-          id: item.uuid,
-          title: item.title,
-          publisher: item.publisher,
-          link: item.link,
-          publishedAt: item.providerPublishTime?.toISOString() ?? null,
-          })) ?? [],
+      news: pagedNews,
       newsMeta: {
         limit: newsLimit,
         offset: newsOffset,
-        returned: search?.news?.slice(newsOffset, newsOffset + newsLimit).length ?? 0,
-        totalAvailable: search?.news?.length ?? 0,
+        returned: pagedNews.length,
+        totalAvailable: newsItems.length,
         fetched: newsFetchCount,
+        hasMore: hasMoreNews,
       },
       context: {
         avgVolume10Day: n(quote.averageDailyVolume10Day),

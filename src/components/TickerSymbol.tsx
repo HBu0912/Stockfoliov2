@@ -18,14 +18,14 @@ export function TickerSymbol({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={className ?? "font-mono underline-offset-2 hover:underline"}
+        className={className ?? "font-sans underline-offset-2 hover:underline"}
       >
         {clean}
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-(--card-border) bg-(--card) p-4 font-sans text-foreground shadow-xl">
             <div className="mb-2 flex justify-end">
               <button
                 type="button"
