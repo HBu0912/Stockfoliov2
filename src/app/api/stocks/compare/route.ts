@@ -102,9 +102,9 @@ export async function GET(req: Request) {
     Boolean
   );
 
-  if (symbols.length < 2 || symbols.length > 3) {
+  if (symbols.length < 2 || symbols.length > 5) {
     return NextResponse.json(
-      { error: "Please provide 2-3 ticker symbols (comma-separated)." },
+      { error: "Please provide 2-5 ticker symbols (comma-separated)." },
       { status: 400 }
     );
   }

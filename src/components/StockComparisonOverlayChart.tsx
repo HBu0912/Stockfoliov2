@@ -14,7 +14,7 @@ type SeriesPayload = {
   chart: ChartPoint[];
 };
 
-const palette = ["#34d399", "#60a5fa", "#fbbf24"];
+const palette = ["#34d399", "#60a5fa", "#fbbf24", "#c084fc", "#fb7185"];
 
 function formatXAxis(dateISO: string, interval: CompareIntervalKey): string {
   const d = new Date(dateISO);

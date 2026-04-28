@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 import { TickerSymbol } from "@/components/TickerSymbol";
 import { StockComparisonOverlayChart, type CompareIntervalKey } from "@/components/StockComparisonOverlayChart";
@@ -107,6 +107,10 @@ function normalizeTicker(text: string): string {
 
 const compareIntervals: CompareIntervalKey[] = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"];
 
+const LS_TICKERS = "pf-stock-comparison-tickers";
+const LS_INTERVAL = "pf-stock-comparison-interval";
+const MAX_COMPARE = 5;
+
 export default function StockComparisonPage() {
   const [tickerInput, setTickerInput] = useState("");
   const [tickers, setTickers] = useState<string[]>([]);
@@ -114,8 +118,83 @@ export default function StockComparisonPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartInterval, setChartInterval] = useState<CompareIntervalKey>("1M");
+  const [hydrated, setHydrated] = useState(false);
 
-  const canCompare = tickers.length >= 2 && tickers.length <= 3;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_TICKERS);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          const cleaned = [
+            ...new Set(parsed.map((x) => normalizeTicker(String(x))).filter(Boolean)),
+          ].slice(0, MAX_COMPARE);
+          setTickers(cleaned);
+        }
+      }
+      const iv = localStorage.getItem(LS_INTERVAL);
+      if (iv && compareIntervals.includes(iv as CompareIntervalKey)) {
+        setChartInterval(iv as CompareIntervalKey);
+      }
+    } catch {
+      // ignore
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(LS_TICKERS, JSON.stringify(tickers));
+    } catch {
+      // ignore
+    }
+  }, [tickers, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(LS_INTERVAL, chartInterval);
+    } catch {
+      // ignore
+    }
+  }, [chartInterval, hydrated]);
+
+  const tickersKey = tickers.join(",");
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (tickers.length < 2) {
+      setStocks([]);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ symbols: tickers.join(",") });
+        const res = await fetch(`/api/stocks/compare?${params.toString()}`);
+        const data = (await res.json().catch(() => ({}))) as {
+          stocks?: ComparedStock[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok || !data.stocks) {
+          setError(data.error ?? "Could not compare symbols.");
+          setStocks([]);
+          return;
+        }
+        setStocks(data.stocks);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, tickersKey]);
 
   function addTicker() {
     const symbol = normalizeTicker(tickerInput);
@@ -124,37 +203,13 @@ export default function StockComparisonPage() {
       setTickerInput("");
       return;
     }
-    if (tickers.length >= 3) return;
+    if (tickers.length >= MAX_COMPARE) return;
     setTickers((prev) => [...prev, symbol]);
     setTickerInput("");
   }
 
   function removeTicker(symbol: string) {
     setTickers((prev) => prev.filter((s) => s !== symbol));
-  }
-
-  async function runComparison() {
-    if (!canCompare) {
-      setError("Choose at least 2 and at most 3 symbols.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ symbols: tickers.join(",") });
-      const res = await fetch(`/api/stocks/compare?${params.toString()}`);
-      const data = (await res.json().catch(() => ({}))) as {
-        stocks?: ComparedStock[];
-        error?: string;
-      };
-      if (!res.ok || !data.stocks) {
-        setError(data.error ?? "Could not compare symbols.");
-        return;
-      }
-      setStocks(data.stocks);
-    } finally {
-      setLoading(false);
-    }
   }
 
   const winnerMap = useMemo(() => {
@@ -179,11 +234,13 @@ export default function StockComparisonPage() {
     return winners;
   }, [stocks]);
 
+  const chartSymbols = tickers.length >= 2 ? tickers : [];
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-(--card-border) bg-(--card) px-5 py-4 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Stock Comparison</h1>
-        <p className="mt-1 text-sm text-(--muted)">Add multiple tickers to compare.</p>
+        <p className="mt-1 text-sm text-(--muted)">Add 2–5 tickers; comparison and chart update automatically.</p>
       </div>
 
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
@@ -206,18 +263,10 @@ export default function StockComparisonPage() {
           <button
             type="button"
             onClick={addTicker}
-            disabled={tickers.length >= 3}
+            disabled={tickers.length >= MAX_COMPARE}
             className="rounded-md border border-(--card-border) px-3 py-2 text-sm hover:bg-(--background) disabled:opacity-60"
           >
             Add Symbol
-          </button>
-          <button
-            type="button"
-            onClick={() => void runComparison()}
-            disabled={!canCompare || loading}
-            className="rounded-md bg-(--accent) px-3 py-2 text-sm font-medium text-(--accent-foreground) disabled:opacity-60"
-          >
-            {loading ? "Comparing..." : "Compare Stocks"}
           </button>
         </div>
 
@@ -248,12 +297,12 @@ export default function StockComparisonPage() {
       </section>
 
       <section className="space-y-3">
-        {stocks.length === 0 ? (
+        {tickers.length < 2 ? (
           <div className="rounded-2xl border border-(--card-border) bg-(--card) px-4 py-8 text-center text-sm text-(--muted) shadow-sm">
-            Add 2-3 symbols, then click Compare Stocks.
+            Add at least two symbols (up to five). Your list is saved for next visit.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-(--card-border) bg-(--card) px-3 py-2 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-(--muted)">Chart window</p>
               <div className="flex flex-wrap gap-1">
@@ -275,94 +324,101 @@ export default function StockComparisonPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-              {stocks.length >= 2 ? (
-                <StockComparisonOverlayChart
-                  symbols={stocks.map((s) => s.symbol)}
-                  interval={chartInterval}
-                  heightClassName="h-[420px] lg:h-[520px]"
-                />
-              ) : (
-                <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-(--card-border) bg-(--card) p-6 text-center text-sm text-(--muted) shadow-sm lg:min-h-[520px]">
-                  Add one more ticker to see the overlay performance chart.
-                </div>
-              )}
+            <StockComparisonOverlayChart
+              symbols={chartSymbols}
+              interval={chartInterval}
+              heightClassName="h-[min(72vh,780px)] min-h-[380px] w-full"
+            />
 
+            {loading && stocks.length === 0 && (
+              <p className="text-center text-sm text-(--muted)">Loading comparison…</p>
+            )}
+
+            {stocks.length > 0 && (
               <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold">Metrics</p>
                   <p className="text-xs text-(--muted)">Green highlights “best” per row</p>
                 </div>
 
-                <div className="space-y-2">
-                  <div
-                    className="grid gap-2"
-                    style={{ gridTemplateColumns: `140px repeat(${stocks.length}, minmax(0,1fr))` }}
-                  >
-                    <div className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-xs font-semibold text-(--muted)">
-                      Metric
-                    </div>
-                    {stocks.map((stock) => (
-                      <div
-                        key={`head-${stock.symbol}`}
-                        className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-center"
-                      >
-                        <p className="text-sm font-semibold leading-tight">
-                          <TickerSymbol symbol={stock.symbol} className="underline-offset-2 hover:underline" />
-                        </p>
-                        <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-tight text-(--muted)">
-                          {stock.name}
-                        </p>
+                <div className="overflow-x-auto">
+                  <div className="space-y-2 min-w-[520px]">
+                    <div
+                      className="grid gap-2"
+                      style={{
+                        gridTemplateColumns: `minmax(100px,140px) repeat(${stocks.length}, minmax(0,1fr))`,
+                      }}
+                    >
+                      <div className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-xs font-semibold text-(--muted)">
+                        Metric
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="divide-y divide-(--card-border) rounded-2xl border border-(--card-border) bg-(--background)">
-                    {metricConfigs.map((metric) => (
-                      <div
-                        key={`metric-${metric.key}`}
-                        className="grid items-stretch gap-2 px-2 py-2"
-                        style={{ gridTemplateColumns: `140px repeat(${stocks.length}, minmax(0,1fr))` }}
-                      >
-                        <div className="flex items-center gap-1 text-xs font-semibold text-(--muted)">
-                          <span className="truncate">{metric.label}</span>
-                          <span className="group relative inline-flex shrink-0">
-                            <button
-                              type="button"
-                              className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
-                              aria-label={`${metric.label} description`}
-                            >
-                              i
-                            </button>
-                            <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-(--card-border) bg-(--card) px-2 py-1 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
-                              {metric.description}
-                            </span>
-                          </span>
+                      {stocks.map((stock) => (
+                        <div
+                          key={`head-${stock.symbol}`}
+                          className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-center"
+                        >
+                          <p className="text-sm font-semibold leading-tight">
+                            <TickerSymbol
+                              symbol={stock.symbol}
+                              className="font-sans underline-offset-2 hover:underline"
+                            />
+                          </p>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-tight text-(--muted)">
+                            {stock.name}
+                          </p>
                         </div>
+                      ))}
+                    </div>
 
-                        {stocks.map((stock) => {
-                          const value = stock[metric.key] as number | null;
-                          const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
-                          return (
-                            <div
-                              key={`${metric.key}-${stock.symbol}`}
-                              className={
-                                "flex min-h-[44px] items-center justify-center rounded-xl border px-2 text-center text-sm " +
-                                (isWinner
-                                  ? "border-emerald-400/70 bg-emerald-500/10 text-emerald-200 font-semibold"
-                                  : "border-transparent bg-(--card) text-foreground/90")
-                              }
-                            >
-                              {metric.format(value)}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
+                    <div className="divide-y divide-(--card-border) rounded-2xl border border-(--card-border) bg-(--background)">
+                      {metricConfigs.map((metric) => (
+                        <div
+                          key={`metric-${metric.key}`}
+                          className="grid items-stretch gap-2 px-2 py-2"
+                          style={{
+                            gridTemplateColumns: `minmax(100px,140px) repeat(${stocks.length}, minmax(0,1fr))`,
+                          }}
+                        >
+                          <div className="flex items-center gap-1 text-xs font-semibold text-(--muted)">
+                            <span className="truncate">{metric.label}</span>
+                            <span className="group relative inline-flex shrink-0">
+                              <button
+                                type="button"
+                                className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
+                                aria-label={`${metric.label} description`}
+                              >
+                                i
+                              </button>
+                              <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-(--card-border) bg-(--card) px-2 py-1 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
+                                {metric.description}
+                              </span>
+                            </span>
+                          </div>
+
+                          {stocks.map((stock) => {
+                            const value = stock[metric.key] as number | null;
+                            const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
+                            return (
+                              <div
+                                key={`${metric.key}-${stock.symbol}`}
+                                className={
+                                  "flex min-h-[44px] items-center justify-center rounded-xl border px-2 text-center text-sm " +
+                                  (isWinner
+                                    ? "border-emerald-400/70 bg-emerald-500/10 text-emerald-200 font-semibold"
+                                    : "border-transparent bg-(--card) text-foreground/90")
+                                }
+                              >
+                                {metric.format(value)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </section>

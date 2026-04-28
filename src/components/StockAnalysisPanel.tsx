@@ -16,6 +16,13 @@ import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 const intervals = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"] as const;
 type IntervalKey = (typeof intervals)[number];
 
+type PortfolioAllocation = {
+  inPortfolio: boolean;
+  allocationPct: number | null;
+  positionValue: number;
+  portfolioValue: number;
+};
+
 type Payload = {
   symbol: string;
   name: string;
@@ -168,6 +175,7 @@ export function StockAnalysisPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Payload | null>(null);
+  const [allocation, setAllocation] = useState<PortfolioAllocation | null>(null);
 
   const [newsOffset, setNewsOffset] = useState(0);
   const newsLimit = 5;
@@ -220,6 +228,37 @@ export function StockAnalysisPanel({
       cancelled = true;
     };
   }, [symbol, interval, reloadToken, newsOffset]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAllocation() {
+      if (!symbol) return;
+      try {
+        const res = await fetch(
+          `/api/portfolio/allocation?symbol=${encodeURIComponent(symbol.trim().toUpperCase())}`
+        );
+        const json = (await res.json().catch(() => ({}))) as PortfolioAllocation & { error?: string };
+        if (cancelled) return;
+        if (!res.ok) {
+          setAllocation(null);
+          return;
+        }
+        setAllocation({
+          inPortfolio: !!json.inPortfolio,
+          allocationPct:
+            json.allocationPct != null && Number.isFinite(json.allocationPct) ? json.allocationPct : null,
+          positionValue: typeof json.positionValue === "number" ? json.positionValue : 0,
+          portfolioValue: typeof json.portfolioValue === "number" ? json.portfolioValue : 0,
+        });
+      } catch {
+        if (!cancelled) setAllocation(null);
+      }
+    }
+    void loadAllocation();
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol]);
 
   const rangePct = useMemo(() => {
     if (!data?.metrics.week52Low || !data.metrics.week52High || !data.metrics.price) return null;
@@ -294,6 +333,21 @@ export function StockAnalysisPanel({
           <p className="mt-1 text-xs text-(--muted)">
             {[data?.exchange, data?.currency, data?.marketState].filter(Boolean).join(" · ")}
           </p>
+          {allocation?.inPortfolio && allocation.allocationPct != null ? (
+            <p className="mt-1 text-xs text-(--muted)">
+              Your portfolio:{" "}
+              <span className="font-semibold text-foreground">
+                {formatNumber(allocation.allocationPct, 2)}%
+              </span>{" "}
+              of total value is in this ticker
+              {allocation.portfolioValue > 0 ? (
+                <span className="text-(--muted)">
+                  {" "}
+                  ({formatUsd(allocation.positionValue)} / {formatUsd(allocation.portfolioValue)})
+                </span>
+              ) : null}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
