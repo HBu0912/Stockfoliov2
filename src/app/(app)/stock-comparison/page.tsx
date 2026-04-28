@@ -324,101 +324,105 @@ export default function StockComparisonPage() {
               </div>
             </div>
 
-            <StockComparisonOverlayChart
-              symbols={chartSymbols}
-              interval={chartInterval}
-              heightClassName="h-[min(72vh,780px)] min-h-[380px] w-full"
-            />
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(280px,0.92fr)] lg:items-start">
+              <div className="min-w-0">
+                <StockComparisonOverlayChart
+                  symbols={chartSymbols}
+                  interval={chartInterval}
+                  heightClassName="h-[min(62vh,640px)] min-h-[320px] w-full"
+                />
+                {loading && stocks.length === 0 && (
+                  <p className="mt-2 text-center text-sm text-(--muted) lg:text-left">Loading comparison…</p>
+                )}
+              </div>
 
-            {loading && stocks.length === 0 && (
-              <p className="text-center text-sm text-(--muted)">Loading comparison…</p>
-            )}
-
-            {stocks.length > 0 && (
-              <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">Metrics</p>
-                  <p className="text-xs text-(--muted)">Green highlights “best” per row</p>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <div className="space-y-2 min-w-[520px]">
-                    <div
-                      className="grid gap-2"
-                      style={{
-                        gridTemplateColumns: `minmax(100px,140px) repeat(${stocks.length}, minmax(0,1fr))`,
-                      }}
-                    >
-                      <div className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-xs font-semibold text-(--muted)">
-                        Metric
-                      </div>
-                      {stocks.map((stock) => (
-                        <div
-                          key={`head-${stock.symbol}`}
-                          className="rounded-xl border border-(--card-border) bg-(--background) px-2 py-2 text-center"
-                        >
-                          <p className="text-sm font-semibold leading-tight">
-                            <TickerSymbol
-                              symbol={stock.symbol}
-                              className="font-sans underline-offset-2 hover:underline"
-                            />
-                          </p>
-                          <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-tight text-(--muted)">
-                            {stock.name}
-                          </p>
-                        </div>
-                      ))}
+              <div className="min-w-0">
+                {stocks.length > 0 && (
+                  <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
+                    <div className="mb-2 flex flex-nowrap items-center justify-between gap-2 overflow-hidden">
+                      <p className="shrink-0 text-sm font-semibold">Metrics</p>
+                      <p className="truncate text-xs text-(--muted)">Green = best per row</p>
                     </div>
 
-                    <div className="divide-y divide-(--card-border) rounded-2xl border border-(--card-border) bg-(--background)">
-                      {metricConfigs.map((metric) => (
+                    <div className="overflow-x-auto">
+                      <div
+                        className="space-y-1"
+                        style={{ minWidth: `${112 + stocks.length * 72}px` }}
+                      >
                         <div
-                          key={`metric-${metric.key}`}
-                          className="grid items-stretch gap-2 px-2 py-2"
+                          className="grid gap-1.5"
                           style={{
-                            gridTemplateColumns: `minmax(100px,140px) repeat(${stocks.length}, minmax(0,1fr))`,
+                            gridTemplateColumns: `minmax(88px,112px) repeat(${stocks.length}, minmax(64px,1fr))`,
                           }}
                         >
-                          <div className="flex items-center gap-1 text-xs font-semibold text-(--muted)">
-                            <span className="truncate">{metric.label}</span>
-                            <span className="group relative inline-flex shrink-0">
-                              <button
-                                type="button"
-                                className="h-4 w-4 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
-                                aria-label={`${metric.label} description`}
-                              >
-                                i
-                              </button>
-                              <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-(--card-border) bg-(--card) px-2 py-1 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
-                                {metric.description}
-                              </span>
-                            </span>
+                          <div className="flex h-9 items-center whitespace-nowrap rounded-lg border border-(--card-border) bg-(--background) px-2 text-xs font-semibold text-(--muted)">
+                            Metric
                           </div>
-
-                          {stocks.map((stock) => {
-                            const value = stock[metric.key] as number | null;
-                            const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
-                            return (
-                              <div
-                                key={`${metric.key}-${stock.symbol}`}
-                                className={
-                                  "flex min-h-[44px] items-center justify-center rounded-xl border px-2 text-center text-sm " +
-                                  (isWinner
-                                    ? "border-emerald-400/70 bg-emerald-500/10 text-emerald-200 font-semibold"
-                                    : "border-transparent bg-(--card) text-foreground/90")
-                                }
-                              >
-                                {metric.format(value)}
-                              </div>
-                            );
-                          })}
+                          {stocks.map((stock) => (
+                            <div
+                              key={`head-${stock.symbol}`}
+                              className="flex h-9 w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border border-(--card-border) bg-(--background) px-1"
+                            >
+                              <TickerSymbol
+                                symbol={stock.symbol}
+                                className="block w-full min-w-0 truncate text-center text-xs font-semibold font-sans underline-offset-2 hover:underline"
+                              />
+                            </div>
+                          ))}
                         </div>
-                      ))}
+
+                        <div className="divide-y divide-(--card-border) rounded-xl border border-(--card-border) bg-(--background)">
+                          {metricConfigs.map((metric) => (
+                            <div
+                              key={`metric-${metric.key}`}
+                              className="grid gap-1.5 px-1.5 py-1"
+                              style={{
+                                gridTemplateColumns: `minmax(88px,112px) repeat(${stocks.length}, minmax(64px,1fr))`,
+                              }}
+                            >
+                              <div className="flex min-h-9 min-w-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-(--muted)">
+                                <span className="min-w-0 truncate">{metric.label}</span>
+                                <span className="group relative inline-flex shrink-0">
+                                  <button
+                                    type="button"
+                                    className="h-4 w-4 shrink-0 rounded-full border border-(--card-border) text-[10px] font-semibold text-(--muted)"
+                                    aria-label={`${metric.label} description`}
+                                  >
+                                    i
+                                  </button>
+                                  <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-(--card-border) bg-(--card) px-2 py-1 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
+                                    {metric.description}
+                                  </span>
+                                </span>
+                              </div>
+
+                              {stocks.map((stock) => {
+                                const value = stock[metric.key] as number | null;
+                                const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
+                                return (
+                                  <div
+                                    key={`${metric.key}-${stock.symbol}`}
+                                    className={
+                                      "flex min-h-9 items-center justify-center overflow-hidden whitespace-nowrap rounded-lg border px-1 text-center text-xs tabular-nums " +
+                                      (isWinner
+                                        ? "border-emerald-400/70 bg-emerald-500/10 font-semibold text-emerald-200"
+                                        : "border-transparent bg-(--card) text-foreground/90")
+                                    }
+                                    title={metric.format(value)}
+                                  >
+                                    <span className="block min-w-0 truncate">{metric.format(value)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
       </section>
