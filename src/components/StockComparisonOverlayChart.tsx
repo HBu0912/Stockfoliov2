@@ -61,6 +61,20 @@ function minutesInNewYork(dateISO: string): number {
   return hour * 60 + minute;
 }
 
+function newYorkDateKey(dateISO: string): string {
+  const d = new Date(dateISO);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
 export function StockComparisonOverlayChart({
   symbols,
   interval,
@@ -121,20 +135,24 @@ export function StockComparisonOverlayChart({
 
   const marketOpenIdx = useMemo(() => {
     if (interval !== "1D" || merged.length === 0) return null;
+    const latestDate = merged.map((row) => newYorkDateKey(String(row.at ?? ""))).sort().at(-1);
+    if (!latestDate) return null;
     return (
       (merged.find((row) => {
         const at = String(row.at ?? "");
-        return minutesInNewYork(at) >= 9 * 60 + 30;
+        return newYorkDateKey(at) === latestDate && minutesInNewYork(at) >= 9 * 60 + 30;
       })?.idx as number | undefined) ?? null
     );
   }, [interval, merged]);
 
   const marketCloseIdx = useMemo(() => {
     if (interval !== "1D" || merged.length === 0) return null;
+    const latestDate = merged.map((row) => newYorkDateKey(String(row.at ?? ""))).sort().at(-1);
+    if (!latestDate) return null;
     return (
       (merged.find((row) => {
         const at = String(row.at ?? "");
-        return minutesInNewYork(at) >= 16 * 60;
+        return newYorkDateKey(at) === latestDate && minutesInNewYork(at) >= 16 * 60;
       })?.idx as number | undefined) ?? null
     );
   }, [interval, merged]);
@@ -183,7 +201,7 @@ export function StockComparisonOverlayChart({
               {interval === "1D" && marketOpenIdx != null && (
                 <ReferenceLine
                   x={marketOpenIdx}
-                  stroke="rgba(59,130,246,0.9)"
+                  stroke="rgba(148,163,184,0.9)"
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
@@ -192,7 +210,7 @@ export function StockComparisonOverlayChart({
               {interval === "1D" && marketCloseIdx != null && (
                 <ReferenceLine
                   x={marketCloseIdx}
-                  stroke="rgba(251,146,60,0.9)"
+                  stroke="rgba(148,163,184,0.9)"
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"

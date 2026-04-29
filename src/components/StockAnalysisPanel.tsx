@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Line,
   LineChart,
@@ -131,6 +131,27 @@ function minutesInNewYork(dateISO: string): number {
   return hour * 60 + minute;
 }
 
+function newYorkDateKey(dateISO: string): string {
+  const d = new Date(dateISO);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
+function readActiveIdx(state: unknown): number | null {
+  if (typeof state !== "object" || state == null) return null;
+  const idx = (state as { activeTooltipIndex?: unknown }).activeTooltipIndex;
+  if (typeof idx !== "number" || !Number.isFinite(idx)) return null;
+  return idx;
+}
+
 function PriceTooltip({
   active,
   payload,
@@ -197,7 +218,7 @@ export function StockAnalysisPanel({
   const [dragging, setDragging] = useState(false);
   const [dragStartIdx, setDragStartIdx] = useState<number | null>(null);
   const [dragEndIdx, setDragEndIdx] = useState<number | null>(null);
-  const chartWrapRef = useRef<HTMLDivElement | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,36 +333,28 @@ export function StockAnalysisPanel({
     };
   }, [chartRows, dragStartIdx, dragEndIdx]);
 
-  const idxFromClientX = useCallback(
-    (clientX: number) => {
-      const el = chartWrapRef.current;
-      if (!el || chartRows.length === 0) return null;
-      const rect = el.getBoundingClientRect();
-      const x = Math.min(Math.max(clientX - rect.left, 0), rect.width);
-      const ratio = rect.width <= 1 ? 0 : x / rect.width;
-      const idx = Math.round(ratio * (chartRows.length - 1));
-      return Math.max(0, Math.min(chartRows.length - 1, idx));
-    },
-    [chartRows.length]
-  );
+  const latestNyDateKey = useMemo(() => {
+    if (interval !== "1D" || chartRows.length === 0) return null;
+    return chartRows.map((r) => newYorkDateKey(r.at)).sort().at(-1) ?? null;
+  }, [interval, chartRows]);
 
   const marketOpenIdx = useMemo(() => {
-    if (interval !== "1D" || chartRows.length === 0) return null;
+    if (interval !== "1D" || chartRows.length === 0 || !latestNyDateKey) return null;
     return (
       chartRows.find((r) => {
-        return minutesInNewYork(r.at) >= 9 * 60 + 30;
+        return newYorkDateKey(r.at) === latestNyDateKey && minutesInNewYork(r.at) >= 9 * 60 + 30;
       })?.idx ?? null
     );
-  }, [interval, chartRows]);
+  }, [interval, chartRows, latestNyDateKey]);
 
   const marketCloseIdx = useMemo(() => {
-    if (interval !== "1D" || chartRows.length === 0) return null;
+    if (interval !== "1D" || chartRows.length === 0 || !latestNyDateKey) return null;
     return (
       chartRows.find((r) => {
-        return minutesInNewYork(r.at) >= 16 * 60;
+        return newYorkDateKey(r.at) === latestNyDateKey && minutesInNewYork(r.at) >= 16 * 60;
       })?.idx ?? null
     );
-  }, [interval, chartRows]);
+  }, [interval, chartRows, latestNyDateKey]);
 
   return (
     <div className="space-y-3">
@@ -431,42 +444,7 @@ export function StockAnalysisPanel({
             ))}
           </div>
 
-          <div
-            ref={chartWrapRef}
-            className="h-80 rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96"
-            onPointerDown={(e) => {
-              const idx = idxFromClientX(e.clientX);
-              if (idx == null) return;
-              setDragging(true);
-              setDragStartIdx(idx);
-              setDragEndIdx(idx);
-              (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-            }}
-            onPointerMove={(e) => {
-              if (!dragging || dragStartIdx == null) return;
-              const idx = idxFromClientX(e.clientX);
-              if (idx == null) return;
-              setDragEndIdx(idx);
-            }}
-            onPointerUp={(e) => {
-              if (!dragging) return;
-              setDragging(false);
-              try {
-                (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
-              } catch {
-                // ignore
-              }
-            }}
-            onPointerLeave={(e) => {
-              if (!dragging) return;
-              setDragging(false);
-              try {
-                (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
-              } catch {
-                // ignore
-              }
-            }}
-          >
+          <div className="h-80 select-none rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96">
             {loading ? (
               <p className="px-2 py-3 text-sm text-(--muted)">Loading chart...</p>
             ) : error ? (
@@ -475,11 +453,41 @@ export function StockAnalysisPanel({
               <p className="px-2 py-3 text-sm text-(--muted)">No chart data available.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartRows}>
+                <LineChart
+                  data={chartRows}
+                  onMouseDown={(state) => {
+                    const idx = readActiveIdx(state);
+                    if (idx == null) return;
+                    setDragging(true);
+                    setDragStartIdx(idx);
+                    setDragEndIdx(idx);
+                    setHoverIdx(null);
+                  }}
+                  onMouseMove={(state) => {
+                    const idx = readActiveIdx(state);
+                    if (dragging) {
+                      if (idx != null) setDragEndIdx(idx);
+                      return;
+                    }
+                    setHoverIdx(idx);
+                  }}
+                  onMouseUp={(state) => {
+                    if (!dragging) return;
+                    const idx = readActiveIdx(state);
+                    if (idx != null) setDragEndIdx(idx);
+                    setDragging(false);
+                  }}
+                  onMouseLeave={() => {
+                    setHoverIdx(null);
+                    if (dragging) setDragging(false);
+                  }}
+                >
                   <XAxis
                     dataKey="idx"
                     minTickGap={28}
-                    tick={{ fontSize: 11 }}
+                    tick={false}
+                    axisLine={false}
+                    tickLine={false}
                     tickFormatter={(value) => chartRows[Number(value)]?.label ?? ""}
                   />
                   <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={56} />
@@ -487,21 +495,27 @@ export function StockAnalysisPanel({
                   {interval === "1D" && marketOpenIdx != null && (
                     <ReferenceLine
                       x={marketOpenIdx}
-                      stroke="rgba(59,130,246,0.9)"
+                      stroke="rgba(148,163,184,0.9)"
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{ value: "Open 9:30", position: "insideTop", fill: "rgba(59,130,246,0.95)", fontSize: 10 }}
                     />
                   )}
                   {interval === "1D" && marketCloseIdx != null && (
                     <ReferenceLine
                       x={marketCloseIdx}
-                      stroke="rgba(251,146,60,0.9)"
+                      stroke="rgba(148,163,184,0.9)"
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{ value: "Close 4:00", position: "insideTop", fill: "rgba(251,146,60,0.95)", fontSize: 10 }}
+                    />
+                  )}
+                  {!dragging && hoverIdx != null && (
+                    <ReferenceLine
+                      x={hoverIdx}
+                      stroke="rgba(148,163,184,0.8)"
+                      strokeDasharray="3 3"
+                      ifOverflow="extendDomain"
                     />
                   )}
                   {selectedRange && (
