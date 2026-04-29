@@ -96,8 +96,11 @@ function formatPct(v: number | null | undefined): string {
 
 function formatXAxis(dateISO: string, interval: IntervalKey): string {
   const d = new Date(dateISO);
-  if (interval === "1D" || interval === "1W") {
+  if (interval === "1D") {
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  if (interval === "1W") {
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
   if (interval === "5Y" || interval === "ALL") {
     return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
@@ -368,7 +371,29 @@ export function StockAnalysisPanel({
     );
   }, [interval, chartRows, latestNyDateKey]);
 
+  const weekOpenIdxSet = useMemo(() => {
+    if (interval !== "1W" || chartRows.length === 0) return new Set<number>();
+    const out = new Set<number>();
+    const seen = new Set<string>();
+    for (const row of chartRows) {
+      const day = newYorkDateKey(row.at);
+      if (seen.has(day)) continue;
+      if (minutesInNewYork(row.at) >= 9 * 60 + 30) {
+        seen.add(day);
+        out.add(row.idx);
+      }
+    }
+    return out;
+  }, [interval, chartRows]);
+
   const xTickFormatter = useMemo(() => {
+    if (interval === "1W") {
+      return (value: number) => {
+        const idx = Number(value);
+        if (!weekOpenIdxSet.has(idx)) return "";
+        return chartRows[idx]?.label ?? "";
+      };
+    }
     if (interval !== "1D") {
       return (value: number) => chartRows[Number(value)]?.label ?? "";
     }
@@ -377,7 +402,7 @@ export function StockAnalysisPanel({
       if (marketCloseIdx != null && value === marketCloseIdx) return "4:00 PM";
       return "";
     };
-  }, [interval, marketOpenIdx, marketCloseIdx, chartRows]);
+  }, [interval, marketOpenIdx, marketCloseIdx, chartRows, weekOpenIdxSet]);
 
   const chartBubblePct = selectedRange?.pct ?? headerChange;
   const chartBubbleLabel = selectedRange ? `${selectedRange.startLabel} → ${selectedRange.endLabel}` : interval;
@@ -569,6 +594,7 @@ export function StockAnalysisPanel({
                     stroke={isNegative ? "#f87171" : "#34d399"}
                     strokeWidth={2}
                     dot={false}
+                    isAnimationActive={false}
                   />
                 </LineChart>
               </ResponsiveContainer>

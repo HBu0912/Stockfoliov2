@@ -20,7 +20,7 @@ function chartWindow(interval: IntervalKey, firstTradeDate: Date | null) {
     return { period1: new Date(now.getTime() - day), period2: now, chartInterval: "5m" as const };
   }
   if (interval === "1W") {
-    return { period1: new Date(now.getTime() - 7 * day), period2: now, chartInterval: "30m" as const };
+    return { period1: new Date(now.getTime() - 21 * day), period2: now, chartInterval: "30m" as const };
   }
   if (interval === "1M") {
     return { period1: new Date(now.getTime() - 30 * day), period2: now, chartInterval: "1d" as const };
@@ -42,6 +42,27 @@ function chartWindow(interval: IntervalKey, firstTradeDate: Date | null) {
     period2: now,
     chartInterval: "1mo" as const,
   };
+}
+
+function newYorkDateKey(dateISO: string): string {
+  const d = new Date(dateISO);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
+function keepLastTradingWeekPoints(points: Array<{ at: string; close: number }>) {
+  if (points.length === 0) return points;
+  const uniqueDaysAsc = [...new Set(points.map((p) => newYorkDateKey(p.at)))].sort();
+  const keepDays = new Set(uniqueDaysAsc.slice(-7));
+  return points.filter((p) => keepDays.has(newYorkDateKey(p.at)));
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ symbol: string }> }) {
@@ -133,13 +154,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       guard += 1;
     }
 
-    const points =
+    const rawPoints =
       chart.quotes
         ?.filter((q) => q.date && q.close != null)
         .map((q) => ({
           at: q.date.toISOString(),
           close: Number(q.close),
         })) ?? [];
+    const points = interval === "1W" ? keepLastTradingWeekPoints(rawPoints) : rawPoints;
 
     const current = n(quote.regularMarketPrice) ?? n(quote.postMarketPrice) ?? n(quote.preMarketPrice);
     const low52 = n(quote.fiftyTwoWeekLow);

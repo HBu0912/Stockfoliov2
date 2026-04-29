@@ -31,8 +31,11 @@ const palette = ["#34d399", "#60a5fa", "#fbbf24", "#c084fc", "#fb7185"];
 
 function formatXAxis(dateISO: string, interval: CompareIntervalKey): string {
   const d = new Date(dateISO);
-  if (interval === "1D" || interval === "1W") {
+  if (interval === "1D") {
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  if (interval === "1W") {
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
   if (interval === "5Y" || interval === "ALL") {
     return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
@@ -208,7 +211,31 @@ export function StockComparisonOverlayChart({
     );
   }, [interval, merged]);
 
+  const weekOpenIdxSet = useMemo(() => {
+    if (interval !== "1W" || merged.length === 0) return new Set<number>();
+    const out = new Set<number>();
+    const seen = new Set<string>();
+    for (const row of merged) {
+      const idx = Number(row.idx);
+      const at = String(row.at ?? "");
+      const day = newYorkDateKey(at);
+      if (seen.has(day)) continue;
+      if (minutesInNewYork(at) >= 9 * 60 + 30) {
+        seen.add(day);
+        out.add(idx);
+      }
+    }
+    return out;
+  }, [interval, merged]);
+
   const xTickFormatter = useMemo(() => {
+    if (interval === "1W") {
+      return (value: number) => {
+        const idx = Number(value);
+        if (!weekOpenIdxSet.has(idx)) return "";
+        return String(merged[idx]?.label ?? "");
+      };
+    }
     if (interval !== "1D") {
       return (value: number) => String(merged[Number(value)]?.label ?? "");
     }
@@ -217,7 +244,34 @@ export function StockComparisonOverlayChart({
       if (marketCloseIdx != null && value === marketCloseIdx) return "4:00 PM";
       return "";
     };
-  }, [interval, marketOpenIdx, marketCloseIdx, merged]);
+  }, [interval, marketOpenIdx, marketCloseIdx, merged, weekOpenIdxSet]);
+
+  const yTickConfig = useMemo(() => {
+    const vals: number[] = [];
+    for (const row of merged) {
+      for (const s of series) {
+        const v = Number((row as MergedRow)[s.symbol]);
+        if (Number.isFinite(v)) vals.push(v);
+      }
+    }
+    if (vals.length === 0) {
+      return { ticks: undefined as number[] | undefined, minTick: null as number | null, maxTick: null as number | null };
+    }
+    let min = Math.min(...vals);
+    let max = Math.max(...vals);
+    const span = max - min || 1;
+    min -= span * 0.06;
+    max += span * 0.2;
+    const minTick = Math.floor(min);
+    const maxTick = Math.ceil(max);
+    const ticks = new Set<number>();
+    const rawStep = (maxTick - minTick) / 6;
+    const step = Math.max(1, Math.ceil(rawStep));
+    for (let t = minTick; t <= maxTick; t += step) ticks.add(t);
+    ticks.add(0);
+    const sorted = [...ticks].sort((a, b) => a - b);
+    return { ticks: sorted, minTick: sorted[0] ?? null, maxTick: sorted[sorted.length - 1] ?? null };
+  }, [merged, series]);
 
   const bubbleRows = useMemo(() => {
     if (selectedRange) {
@@ -313,7 +367,14 @@ export function StockComparisonOverlayChart({
                   const span = max - min || Math.abs(max || 1);
                   return [min - span * 0.06, max + span * 0.2];
                 }}
-                tickFormatter={(v) => formatPercentTick(typeof v === "number" ? v : Number(v))}
+                ticks={yTickConfig.ticks}
+                tickFormatter={(v) => {
+                  const n = typeof v === "number" ? v : Number(v);
+                  if (!Number.isFinite(n)) return "";
+                  if (n === 0) return "0%";
+                  if (n === yTickConfig.minTick || n === yTickConfig.maxTick) return "";
+                  return `${Math.round(n)}%`;
+                }}
                 tick={{ pointerEvents: "none" }}
                 width={48}
               />
@@ -379,6 +440,7 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   dot={false}
                   connectNulls
+                  isAnimationActive={false}
                 />
               ))}
             </LineChart>
@@ -406,6 +468,3 @@ function formatNumber(n: number | null | undefined, digits = 2): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 }
 
-function formatPercentTick(v: number): string {
-  return `${v.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`;
-}

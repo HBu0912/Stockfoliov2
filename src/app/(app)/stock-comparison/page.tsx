@@ -343,15 +343,12 @@ export default function StockComparisonPage() {
                     </p>
                   </div>
 
-                  <div className="overflow-x-auto rounded-xl">
-                    <div
-                      className="min-w-0 space-y-0"
-                      style={{ minWidth: `${128 + stocks.length * 80}px` }}
-                    >
+                  <div className="rounded-xl">
+                    <div className="min-w-0 space-y-0">
                       <div
                         className="grid gap-2 border-b border-(--card-border) pb-2"
                         style={{
-                          gridTemplateColumns: `minmax(96px,128px) repeat(${stocks.length}, minmax(72px,1fr))`,
+                          gridTemplateColumns: `minmax(100px,120px) repeat(${stocks.length}, minmax(0,1fr))`,
                         }}
                       >
                         <div className="flex h-11 items-center rounded-lg bg-slate-100 px-2 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/90 dark:text-slate-300">
@@ -386,7 +383,7 @@ export default function StockComparisonPage() {
                                 : "bg-transparent")
                             }
                             style={{
-                              gridTemplateColumns: `minmax(96px,128px) repeat(${stocks.length}, minmax(72px,1fr))`,
+                              gridTemplateColumns: `minmax(100px,120px) repeat(${stocks.length}, minmax(0,1fr))`,
                             }}
                           >
                             <div className="flex min-h-10 min-w-0 items-center gap-1.5 pl-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
