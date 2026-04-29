@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import yahooFinance, { type Quote } from "yahoo-finance2";
+import yahooFinance from "yahoo-finance2";
 import { NextResponse } from "next/server";
 
 type SessionType = "premarket" | "aftermarket" | "time-unknown";
@@ -99,11 +99,11 @@ export async function GET(req: Request) {
   const out: EarningsItem[] = [];
   await runWithConcurrency(symbols, 6, async (symbol) => {
       try {
-        const q = (await yahooFinance.quote(symbol)) as Quote;
+        const q = (await yahooFinance.quote(symbol)) as Record<string, unknown>;
         const earningsDateCandidates = [
-          isoFromUnixSeconds((q as unknown as Record<string, unknown>).earningsTimestamp),
-          isoFromUnixSeconds((q as unknown as Record<string, unknown>).earningsTimestampStart),
-          isoFromUnixSeconds((q as unknown as Record<string, unknown>).earningsTimestampEnd),
+          isoFromUnixSeconds(q.earningsTimestamp),
+          isoFromUnixSeconds(q.earningsTimestampStart),
+          isoFromUnixSeconds(q.earningsTimestampEnd),
         ].filter((x): x is string => Boolean(x));
 
         let earningsDate = earningsDateCandidates[0] ?? null;
@@ -120,8 +120,8 @@ export async function GET(req: Request) {
         }
         if (!earningsDate) return;
 
-        const epsEstimate = toNum((q as unknown as Record<string, unknown>).epsForward);
-        const epsActual = toNum((q as unknown as Record<string, unknown>).epsCurrentYear);
+        const epsEstimate = toNum(q.epsForward);
+        const epsActual = toNum(q.epsCurrentYear);
         const epsBeat = epsActual != null && epsEstimate != null ? epsActual >= epsEstimate : null;
         const revenueEstimate = null;
         const revenueActual = null;
@@ -133,7 +133,7 @@ export async function GET(req: Request) {
 
         out.push({
           symbol,
-          shortName: String((q as unknown as Record<string, unknown>).shortName ?? (q as unknown as Record<string, unknown>).longName ?? symbol),
+          shortName: String(q.shortName ?? q.longName ?? symbol),
           earningsDate,
           session,
           website: null,
