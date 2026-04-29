@@ -486,7 +486,13 @@ export function StockAnalysisPanel({
             ))}
           </div>
 
-          <div className="relative h-80 select-none rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96">
+          <div
+            className="relative h-80 select-none rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              window.getSelection()?.removeAllRanges();
+            }}
+          >
             {loading ? (
               <p className="px-2 py-3 text-sm text-(--muted)">Loading chart...</p>
             ) : error ? (
@@ -535,7 +541,7 @@ export function StockAnalysisPanel({
                   <XAxis
                     dataKey="idx"
                     minTickGap={28}
-                    tick={{ fontSize: 11, fill: "rgba(148,163,184,0.95)" }}
+                    tick={{ fontSize: 11, fill: "rgba(148,163,184,0.95)", pointerEvents: "none" }}
                     axisLine={{ stroke: "rgba(148,163,184,0.6)" }}
                     tickLine={false}
                     tickFormatter={xTickFormatter}
@@ -553,6 +559,22 @@ export function StockAnalysisPanel({
                     width={56}
                   />
                   <Tooltip content={<PriceTooltip interval={interval} />} cursor={false} />
+                  {interval === "1D" && marketOpenIdx != null && marketOpenIdx > 0 && (
+                    <ReferenceArea
+                      x1={0}
+                      x2={marketOpenIdx}
+                      strokeOpacity={0}
+                      fill="rgba(148,163,184,0.08)"
+                    />
+                  )}
+                  {interval === "1D" && marketCloseIdx != null && marketCloseIdx < chartRows.length - 1 && (
+                    <ReferenceArea
+                      x1={marketCloseIdx}
+                      x2={chartRows.length - 1}
+                      strokeOpacity={0}
+                      fill="rgba(148,163,184,0.08)"
+                    />
+                  )}
                   {interval === "1D" && marketOpenIdx != null && (
                     <ReferenceLine
                       x={marketOpenIdx}
@@ -560,6 +582,7 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
+                      label={{ value: "9:30 AM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                     />
                   )}
                   {interval === "1D" && marketCloseIdx != null && (
@@ -569,6 +592,7 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
+                      label={{ value: "4 PM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                     />
                   )}
                   {!dragging && hoverIdx != null && (
@@ -594,7 +618,8 @@ export function StockAnalysisPanel({
                     stroke={isNegative ? "#f87171" : "#34d399"}
                     strokeWidth={2}
                     dot={false}
-                    isAnimationActive={false}
+                    isAnimationActive
+                    animationDuration={450}
                   />
                 </LineChart>
               </ResponsiveContainer>

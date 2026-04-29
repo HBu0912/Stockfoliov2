@@ -278,7 +278,7 @@ export function StockComparisonOverlayChart({
       return selectedRange.perSymbol.map((x) => ({
         symbol: x.symbol,
         pct: x.pct,
-        label: `${x.symbol} ${x.pct > 0 ? "+" : ""}${formatNumber(x.pct, 2)}%`,
+        color: palette[Math.max(0, series.findIndex((s) => s.symbol === x.symbol)) % palette.length],
       }));
     }
     return series.map((s) => {
@@ -291,7 +291,7 @@ export function StockComparisonOverlayChart({
       return {
         symbol: s.symbol,
         pct,
-        label: `${s.symbol} ${pct > 0 ? "+" : ""}${formatNumber(pct, 2)}%`,
+        color: palette[Math.max(0, series.findIndex((x) => x.symbol === s.symbol)) % palette.length],
       };
     });
   }, [selectedRange, series, merged]);
@@ -306,7 +306,13 @@ export function StockComparisonOverlayChart({
         <p className="text-xs text-(--muted)">Normalized to 0% at the start of the selected window.</p>
       </div>
 
-      <div className={"relative mt-2 rounded-xl border border-(--card-border) bg-(--background) p-2 " + heightClassName}>
+      <div
+        className={"relative mt-2 rounded-xl border border-(--card-border) bg-(--background) p-2 " + heightClassName}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          window.getSelection()?.removeAllRanges();
+        }}
+      >
         {loading ? (
           <p className="px-2 py-3 text-sm text-(--muted)">Loading overlay...</p>
         ) : error ? (
@@ -355,7 +361,7 @@ export function StockComparisonOverlayChart({
               <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
               <XAxis
                 dataKey="idx"
-                tick={{ fontSize: 11, fill: "rgba(148,163,184,0.95)" }}
+                tick={{ fontSize: 11, fill: "rgba(148,163,184,0.95)", pointerEvents: "none" }}
                 axisLine={{ stroke: "rgba(148,163,184,0.6)" }}
                 tickLine={false}
                 tickFormatter={xTickFormatter}
@@ -365,7 +371,7 @@ export function StockComparisonOverlayChart({
                 domain={([min, max]) => {
                   if (typeof min !== "number" || typeof max !== "number") return [min, max];
                   const span = max - min || Math.abs(max || 1);
-                  return [min - span * 0.06, max + span * 0.2];
+                  return [Math.min(min - span * 0.06, 0), Math.max(max + span * 0.2, 0)];
                 }}
                 ticks={yTickConfig.ticks}
                 tickFormatter={(v) => {
@@ -395,6 +401,22 @@ export function StockComparisonOverlayChart({
                   borderRadius: "12px",
                 }}
               />
+              {interval === "1D" && marketOpenIdx != null && marketOpenIdx > 0 && (
+                <ReferenceArea
+                  x1={0}
+                  x2={marketOpenIdx}
+                  strokeOpacity={0}
+                  fill="rgba(148,163,184,0.08)"
+                />
+              )}
+              {interval === "1D" && marketCloseIdx != null && marketCloseIdx < merged.length - 1 && (
+                <ReferenceArea
+                  x1={marketCloseIdx}
+                  x2={merged.length - 1}
+                  strokeOpacity={0}
+                  fill="rgba(148,163,184,0.08)"
+                />
+              )}
               {interval === "1D" && marketOpenIdx != null && (
                 <ReferenceLine
                   x={marketOpenIdx}
@@ -402,6 +424,7 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
+                  label={{ value: "9:30 AM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                 />
               )}
               {interval === "1D" && marketCloseIdx != null && (
@@ -411,6 +434,7 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
+                  label={{ value: "4 PM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                 />
               )}
               <ReferenceLine y={0} stroke="rgba(148,163,184,0.7)" strokeDasharray="3 3" ifOverflow="extendDomain" />
@@ -440,7 +464,8 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   dot={false}
                   connectNulls
-                  isAnimationActive={false}
+                  isAnimationActive
+                  animationDuration={450}
                 />
               ))}
             </LineChart>
@@ -452,7 +477,9 @@ export function StockComparisonOverlayChart({
             <div className="space-y-0.5">
               {bubbleRows.map((row) => (
                 <p key={row.symbol} className={row.pct < 0 ? "text-red-400" : "text-emerald-300"}>
-                  {row.label}
+                  <span style={{ color: row.color }}>{row.symbol}</span>{" "}
+                  {row.pct > 0 ? "+" : ""}
+                  {formatNumber(row.pct, 2)}%
                 </p>
               ))}
             </div>

@@ -407,15 +407,15 @@ export default function StockComparisonPage() {
                               const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
                               const baseCol =
                                 colIdx % 2 === 0
-                                  ? "border-slate-200/80 bg-white dark:border-slate-700/50 dark:bg-slate-950/30"
-                                  : "border-slate-200/80 bg-slate-50/90 dark:border-slate-700/50 dark:bg-slate-900/35";
+                                  ? "border-sky-200/80 bg-sky-50/70 dark:border-sky-700/40 dark:bg-sky-950/20"
+                                  : "border-indigo-200/80 bg-indigo-50/60 dark:border-indigo-700/40 dark:bg-indigo-950/20";
                               return (
                                 <div
                                   key={`${metric.key}-${stock.symbol}`}
                                   className={
                                     "flex min-h-10 items-center justify-center overflow-hidden rounded-lg border px-2 text-center text-sm tabular-nums " +
                                     (isWinner
-                                      ? "border-emerald-500/70 bg-emerald-100 font-semibold text-emerald-950 shadow-sm dark:border-emerald-400/50 dark:bg-emerald-950/70 dark:text-emerald-50"
+                                      ? "border-emerald-600 bg-emerald-200/90 font-semibold text-emerald-950 shadow-sm dark:border-emerald-400 dark:bg-emerald-500/35 dark:text-emerald-50"
                                       : baseCol + " font-medium text-slate-800 dark:text-slate-100")
                                   }
                                   title={metric.format(value)}
