@@ -18,6 +18,7 @@ type EarningsItem = {
   revenueActual: number | null;
   revenueBeat: boolean | null;
   reportTimeEt: string | null;
+  logoUrl: string | null;
 };
 
 async function runWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
@@ -76,6 +77,42 @@ function isoFromUnixSeconds(v: unknown): string | null {
   return d.toISOString();
 }
 
+function toIsoFromUnknown(v: unknown): string | null {
+  if (!v) return null;
+  if (typeof v === "number") return isoFromUnixSeconds(v);
+  if (typeof v === "string") {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  if (typeof v === "object" && v !== null) {
+    const raw = (v as Record<string, unknown>).raw;
+    if (typeof raw === "number") return isoFromUnixSeconds(raw);
+  }
+  return null;
+}
+
+function extractCalendarDateCandidates(qs: Record<string, unknown>): string[] {
+  const cal = (qs.calendarEvents as Record<string, unknown> | undefined)?.earnings as
+    | Record<string, unknown>
+    | undefined;
+  const raw = cal?.earningsDate;
+  if (Array.isArray(raw)) {
+    return raw.map(toIsoFromUnknown).filter((x): x is string => Boolean(x));
+  }
+  return [toIsoFromUnknown(raw)].filter((x): x is string => Boolean(x));
+}
+
+function logoFromWebsite(website: string | null): string | null {
+  if (!website) return null;
+  try {
+    const host = new URL(website).hostname.replace(/^www\./, "");
+    if (!host) return null;
+    return `https://logo.clearbit.com/${host}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   const s = await getSession();
   if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -100,11 +137,25 @@ export async function GET(req: Request) {
   await runWithConcurrency(symbols, 6, async (symbol) => {
       try {
         const q = (await yahooFinance.quote(symbol)) as Record<string, unknown>;
+        let website: string | null = null;
+        let shortName = String(q.shortName ?? q.longName ?? symbol);
         const earningsDateCandidates = [
           isoFromUnixSeconds(q.earningsTimestamp),
           isoFromUnixSeconds(q.earningsTimestampStart),
           isoFromUnixSeconds(q.earningsTimestampEnd),
         ].filter((x): x is string => Boolean(x));
+
+        if (earningsDateCandidates.length === 0) {
+          const qs = (await yahooFinance.quoteSummary(symbol, {
+            modules: ["calendarEvents", "summaryProfile", "price"],
+          })) as Record<string, unknown>;
+          earningsDateCandidates.push(...extractCalendarDateCandidates(qs));
+          const profile = qs.summaryProfile as Record<string, unknown> | undefined;
+          website = typeof profile?.website === "string" ? profile.website : null;
+          const price = qs.price as Record<string, unknown> | undefined;
+          if (typeof price?.shortName === "string") shortName = price.shortName;
+          if (typeof price?.longName === "string" && shortName === symbol) shortName = price.longName;
+        }
 
         let earningsDate = earningsDateCandidates[0] ?? null;
         if (weekStart && weekEnd && earningsDateCandidates.length > 0) {
@@ -133,10 +184,10 @@ export async function GET(req: Request) {
 
         out.push({
           symbol,
-          shortName: String(q.shortName ?? q.longName ?? symbol),
+          shortName,
           earningsDate,
           session,
-          website: null,
+          website,
           earningsLink: `https://finance.yahoo.com/quote/${symbol}/earnings`,
           epsEstimate,
           epsActual,
@@ -145,6 +196,7 @@ export async function GET(req: Request) {
           revenueActual,
           revenueBeat,
           reportTimeEt: toEtTimeLabel(minutesEt),
+          logoUrl: logoFromWebsite(website),
         });
       } catch {
         // Ignore per-symbol failures.

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatNumber } from "@/lib/money";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 type Item = {
@@ -17,6 +18,7 @@ type Item = {
   revenueActual: number | null;
   revenueBeat: boolean | null;
   reportTimeEt: string | null;
+  logoUrl: string | null;
 };
 
 function startOfWeekMonday(d: Date): Date {
@@ -167,7 +169,14 @@ export default function EarningsCalendarPage() {
                         g.rows.map((r) => (
                           <div key={`${dayKey}-${g.label}-${r.symbol}`} className="rounded-lg border border-(--card-border) px-2 py-2 text-xs">
                             <div className="flex items-center justify-between">
-                              <div className="font-semibold">{r.symbol}</div>
+                              <div className="flex items-center gap-2">
+                                {r.logoUrl ? (
+                                  <Image src={r.logoUrl} alt={`${r.shortName} logo`} width={16} height={16} className="h-4 w-4 rounded-sm" unoptimized />
+                                ) : (
+                                  <div className="h-4 w-4 rounded-sm bg-(--card-border)" />
+                                )}
+                                <div className="font-semibold">{r.symbol}</div>
+                              </div>
                               <div className="text-(--muted)">{r.reportTimeEt ?? "TBD"}</div>
                             </div>
                             <div className="truncate text-(--muted)">{r.shortName}</div>
