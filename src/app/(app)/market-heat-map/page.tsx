@@ -221,7 +221,6 @@ export default function MarketHeatMapPage() {
                 content={<HeatTile depth={0} x={0} y={0} width={0} height={0} name="" />}
                 isAnimationActive
                 animationDuration={350}
-                ratio={1.2}
               />
             </ResponsiveContainer>
           </div>
