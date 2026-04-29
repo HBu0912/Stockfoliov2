@@ -16,6 +16,7 @@ type Item = {
   revenueEstimate: number | null;
   revenueActual: number | null;
   revenueBeat: boolean | null;
+  reportTimeEt: string | null;
 };
 
 function startOfWeekMonday(d: Date): Date {
@@ -36,23 +37,6 @@ export default function EarningsCalendarPage() {
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/earnings/calendar", { cache: "no-store" });
-        const json = (await res.json()) as { items?: Item[] };
-        if (!cancelled) setItems(json.items ?? []);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const weekStart = useMemo(() => {
     const base = startOfWeekMonday(new Date());
     const shifted = new Date(base);
@@ -67,6 +51,29 @@ export default function EarningsCalendarPage() {
       return day;
     });
   }, [weekStart]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const weekEnd = new Date(weekdays[4]);
+        weekEnd.setHours(23, 59, 59, 999);
+        const params = new URLSearchParams({
+          weekStart: weekStart.toISOString(),
+          weekEnd: weekEnd.toISOString(),
+        });
+        const res = await fetch(`/api/earnings/calendar?${params.toString()}`, { cache: "no-store" });
+        const json = (await res.json()) as { items?: Item[] };
+        if (!cancelled) setItems(json.items ?? []);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [weekStart, weekdays]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Item[]>();
@@ -130,60 +137,59 @@ export default function EarningsCalendarPage() {
         </div>
       </section>
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-        <div className="text-sm text-(--muted)">
-          Earnings are auto-loaded for this week. Use the calendar week toggle above to browse other weeks.
-        </div>
+        <div className="text-sm text-(--muted)">Premarket = before 9:30 AM ET. Aftermarket = 4:00 PM ET or later.</div>
       </section>
 
       {loading ? (
         <div className="text-sm text-(--muted)">Loading earnings calendar...</div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-5">
           {grouped.map(([dayKey, dayItems], idx) => {
             const day = weekdays[idx];
             const pre = dayItems.filter((x) => x.session === "premarket");
             const post = dayItems.filter((x) => x.session === "aftermarket");
-            const unknown = dayItems.filter((x) => x.session === "time-unknown");
             return (
-              <section key={dayKey} className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-                <h2 className="mb-3 text-lg font-semibold">{dayLabel(day)}</h2>
+              <section key={dayKey} className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
+                <h2 className="mb-3 text-sm font-semibold">{dayLabel(day)}</h2>
 
                 {[
                   { label: "Premarket", rows: pre },
                   { label: "Aftermarket", rows: post },
-                  { label: "Time Not Listed", rows: unknown },
                 ].map((g) => (
                   <div key={g.label} className="mb-4 last:mb-0">
-                    <h3 className="mb-2 text-sm font-semibold text-(--muted)">{g.label}</h3>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-(--muted)">{g.label}</h3>
                     <div className="space-y-2">
                       {g.rows.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-(--card-border) px-3 py-2 text-xs text-(--muted)">
-                          No companies listed.
+                        <div className="rounded-lg border border-dashed border-(--card-border) px-2 py-2 text-xs text-(--muted)">
+                          None
                         </div>
                       ) : (
                         g.rows.map((r) => (
-                          <div key={`${dayKey}-${g.label}-${r.symbol}`} className="grid gap-2 rounded-lg border border-(--card-border) px-3 py-2 text-sm lg:grid-cols-[80px_minmax(0,1.2fr)_1fr_1fr_220px]">
-                            <div className="font-semibold">{r.symbol}</div>
+                          <div key={`${dayKey}-${g.label}-${r.symbol}`} className="rounded-lg border border-(--card-border) px-2 py-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <div className="font-semibold">{r.symbol}</div>
+                              <div className="text-(--muted)">{r.reportTimeEt ?? "TBD"}</div>
+                            </div>
                             <div className="truncate text-(--muted)">{r.shortName}</div>
-                            <div>
-                              EPS: {formatNumber(r.epsActual, 2)} / {formatNumber(r.epsEstimate, 2)}{" "}
+                            <div className="mt-1 text-(--muted)">
+                              EPS {formatNumber(r.epsActual, 2)} / {formatNumber(r.epsEstimate, 2)}{" "}
                               <span className={r.epsBeat == null ? "text-(--muted)" : r.epsBeat ? "text-emerald-600" : "text-rose-600"}>
                                 {r.epsBeat == null ? "N/A" : r.epsBeat ? "Beat" : "Miss"}
                               </span>
                             </div>
-                            <div>
-                              Rev: {formatNumber(r.revenueActual, 0)} / {formatNumber(r.revenueEstimate, 0)}{" "}
+                            <div className="text-(--muted)">
+                              Rev {formatNumber(r.revenueActual, 0)} / {formatNumber(r.revenueEstimate, 0)}{" "}
                               <span className={r.revenueBeat == null ? "text-(--muted)" : r.revenueBeat ? "text-emerald-600" : "text-rose-600"}>
                                 {r.revenueBeat == null ? "N/A" : r.revenueBeat ? "Beat" : "Miss"}
                               </span>
                             </div>
-                            <div className="flex gap-3 text-xs">
+                            <div className="mt-1 flex gap-3">
                               <a className="text-sky-600 hover:underline" href={r.earningsLink} target="_blank" rel="noreferrer">
-                                Yahoo Earnings
+                                Earnings
                               </a>
                               {r.website ? (
                                 <a className="text-sky-600 hover:underline" href={r.website} target="_blank" rel="noreferrer">
-                                  Company Site
+                                  Website
                                 </a>
                               ) : (
                                 <span className="text-(--muted)">No site</span>
