@@ -1,33 +1,16 @@
 "use client";
 
-import { formatNumber } from "@/lib/money";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-type Item = {
+type EarningsItem = {
   symbol: string;
   shortName: string;
   earningsDate: string | null;
   session: "premarket" | "aftermarket" | "time-unknown";
-  website: string | null;
-  earningsLink: string;
-  epsEstimate: number | null;
-  epsActual: number | null;
-  epsBeat: boolean | null;
-  revenueEstimate: number | null;
-  revenueActual: number | null;
-  revenueBeat: boolean | null;
   reportTimeEt: string | null;
   logoUrl: string | null;
-};
-
-type FetchMeta = {
-  attempted: number;
-  withAnyDate: number;
-  inRequestedWeek: number;
-  returned: number;
-  weekStart: string | null;
-  weekEnd: string | null;
+  earningsLink: string;
 };
 
 function startOfWeekMonday(d: Date): Date {
@@ -40,36 +23,37 @@ function startOfWeekMonday(d: Date): Date {
 }
 
 function dayLabel(d: Date): string {
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 export default function EarningsCalendarPage() {
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<EarningsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [fetchMeta, setFetchMeta] = useState<FetchMeta | null>(null);
 
   const weekStart = useMemo(() => {
     const base = startOfWeekMonday(new Date());
-    const shifted = new Date(base);
-    shifted.setDate(base.getDate() + weekOffset * 7);
-    return shifted;
+    const out = new Date(base);
+    out.setDate(base.getDate() + weekOffset * 7);
+    return out;
   }, [weekOffset]);
 
-  const weekdays = useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => {
-      const day = new Date(weekStart);
-      day.setDate(weekStart.getDate() + i);
-      return day;
-    });
-  }, [weekStart]);
+  const weekdays = useMemo(
+    () =>
+      Array.from({ length: 5 }, (_, i) => {
+        const d = new Date(weekStart);
+        d.setDate(weekStart.getDate() + i);
+        return d;
+      }),
+    [weekStart]
+  );
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      setFetchError(null);
+      setError(null);
       try {
         const weekEnd = new Date(weekdays[4]);
         weekEnd.setHours(23, 59, 59, 999);
@@ -78,24 +62,18 @@ export default function EarningsCalendarPage() {
           weekEnd: weekEnd.toISOString(),
         });
         const res = await fetch(`/api/earnings/calendar?${params.toString()}`, { cache: "no-store" });
-        const json = (await res.json()) as { items?: Item[]; meta?: FetchMeta; error?: string };
+        const json = (await res.json().catch(() => ({}))) as { items?: EarningsItem[]; error?: string };
+        if (cancelled) return;
         if (!res.ok) {
-          if (!cancelled) {
-            setItems([]);
-            setFetchMeta(null);
-            setFetchError(json.error ?? "Failed to load earnings.");
-          }
+          setItems([]);
+          setError(json.error ?? "Could not load earnings.");
           return;
         }
-        if (!cancelled) {
-          setItems(json.items ?? []);
-          setFetchMeta(json.meta ?? null);
-        }
+        setItems(json.items ?? []);
       } catch {
         if (!cancelled) {
           setItems([]);
-          setFetchMeta(null);
-          setFetchError("Request failed while loading earnings.");
+          setError("Could not load earnings.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -107,23 +85,23 @@ export default function EarningsCalendarPage() {
   }, [weekStart, weekdays]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, Item[]>();
-    for (const day of weekdays) {
-      map.set(day.toDateString(), []);
-    }
+    const byDay = new Map<string, EarningsItem[]>();
+    for (const d of weekdays) byDay.set(d.toDateString(), []);
     for (const it of items) {
       if (!it.earningsDate) continue;
-      const dt = new Date(it.earningsDate);
-      if (dt < weekdays[0] || dt > new Date(weekdays[4].getTime() + 24 * 60 * 60 * 1000 - 1)) continue;
-      const k = startOfWeekMonday(dt);
-      const idx = Math.floor((dt.getTime() - k.getTime()) / (24 * 60 * 60 * 1000));
-      if (idx < 0 || idx > 4) continue;
-      const matchDay = new Date(k);
-      matchDay.setDate(k.getDate() + idx);
-      const key = matchDay.toDateString();
-      map.set(key, [...(map.get(key) ?? []), it]);
+      const d = new Date(it.earningsDate);
+      const k = d.toDateString();
+      if (!byDay.has(k)) continue;
+      byDay.set(k, [...(byDay.get(k) ?? []), it]);
     }
-    return [...map.entries()];
+    return weekdays.map((day) => {
+      const rows = byDay.get(day.toDateString()) ?? [];
+      return {
+        day,
+        premarket: rows.filter((x) => x.session === "premarket"),
+        aftermarket: rows.filter((x) => x.session === "aftermarket"),
+      };
+    });
   }, [items, weekdays]);
 
   return (
@@ -131,7 +109,7 @@ export default function EarningsCalendarPage() {
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-5 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Earnings Calendar</h1>
         <p className="mt-1 text-sm text-(--muted)">
-          Week-by-week earnings view grouped by weekday, premarket, and aftermarket.
+          See upcoming earnings by day, with ticker, logo, and expected report time.
         </p>
       </section>
 
@@ -153,9 +131,8 @@ export default function EarningsCalendarPage() {
               type="button"
               onClick={() => setWeekOffset(0)}
               className="rounded-lg border border-(--card-border) px-3 py-1.5 text-sm hover:bg-(--card)"
-              title="Calendar: jump to current week"
             >
-              📅 This Week
+              This Week
             </button>
             <button
               type="button"
@@ -167,97 +144,66 @@ export default function EarningsCalendarPage() {
           </div>
         </div>
       </section>
-      <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-        <div className="text-sm text-(--muted)">Premarket = before 9:30 AM ET. Aftermarket = 4:00 PM ET or later.</div>
-      </section>
-      <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 text-sm shadow-sm">
-        {loading ? (
-          <div className="text-(--muted)">Fetch status: loading earnings data...</div>
-        ) : fetchError ? (
-          <div className="text-rose-600">Fetch status: {fetchError}</div>
-        ) : (
-          <div className="space-y-1">
-            <div className="text-emerald-600">
-              Fetch status: API returned {fetchMeta?.returned ?? items.length} earnings entries.
-            </div>
-            <div className="text-(--muted)">
-              Attempted symbols: {fetchMeta?.attempted ?? 0} | Symbols with an earnings date: {fetchMeta?.withAnyDate ?? 0} | In selected week: {fetchMeta?.inRequestedWeek ?? 0}
-            </div>
-          </div>
-        )}
-      </section>
 
       {loading ? (
-        <div className="text-sm text-(--muted)">Loading earnings calendar...</div>
+        <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 text-sm text-(--muted)">
+          Loading earnings...
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-rose-400/50 bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+          {error}
+        </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-5">
-          {grouped.map(([dayKey, dayItems], idx) => {
-            const day = weekdays[idx];
-            const pre = dayItems.filter((x) => x.session === "premarket");
-            const post = dayItems.filter((x) => x.session === "aftermarket");
-            return (
-              <section key={dayKey} className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
-                <h2 className="mb-3 text-sm font-semibold">{dayLabel(day)}</h2>
+          {grouped.map((col) => (
+            <section key={col.day.toDateString()} className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold">{dayLabel(col.day)}</h2>
 
-                {[
-                  { label: "Premarket", rows: pre },
-                  { label: "Aftermarket", rows: post },
-                ].map((g) => (
-                  <div key={g.label} className="mb-4 last:mb-0">
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-(--muted)">{g.label}</h3>
-                    <div className="space-y-2">
-                      {g.rows.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-(--card-border) px-2 py-2 text-xs text-(--muted)">
-                          None
-                        </div>
-                      ) : (
-                        g.rows.map((r) => (
-                          <div key={`${dayKey}-${g.label}-${r.symbol}`} className="rounded-lg border border-(--card-border) px-2 py-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                {r.logoUrl ? (
-                                  <Image src={r.logoUrl} alt={`${r.shortName} logo`} width={16} height={16} className="h-4 w-4 rounded-sm" unoptimized />
-                                ) : (
-                                  <div className="h-4 w-4 rounded-sm bg-(--card-border)" />
-                                )}
-                                <div className="font-semibold">{r.symbol}</div>
-                              </div>
-                              <div className="text-(--muted)">{r.reportTimeEt ?? "TBD"}</div>
-                            </div>
-                            <div className="truncate text-(--muted)">{r.shortName}</div>
-                            <div className="mt-1 text-(--muted)">
-                              EPS {formatNumber(r.epsActual, 2)} / {formatNumber(r.epsEstimate, 2)}{" "}
-                              <span className={r.epsBeat == null ? "text-(--muted)" : r.epsBeat ? "text-emerald-600" : "text-rose-600"}>
-                                {r.epsBeat == null ? "N/A" : r.epsBeat ? "Beat" : "Miss"}
-                              </span>
-                            </div>
-                            <div className="text-(--muted)">
-                              Rev {formatNumber(r.revenueActual, 0)} / {formatNumber(r.revenueEstimate, 0)}{" "}
-                              <span className={r.revenueBeat == null ? "text-(--muted)" : r.revenueBeat ? "text-emerald-600" : "text-rose-600"}>
-                                {r.revenueBeat == null ? "N/A" : r.revenueBeat ? "Beat" : "Miss"}
-                              </span>
-                            </div>
-                            <div className="mt-1 flex gap-3">
-                              <a className="text-sky-600 hover:underline" href={r.earningsLink} target="_blank" rel="noreferrer">
-                                Earnings
-                              </a>
-                              {r.website ? (
-                                <a className="text-sky-600 hover:underline" href={r.website} target="_blank" rel="noreferrer">
-                                  Website
-                                </a>
+              {[
+                { label: "Premarket", rows: col.premarket },
+                { label: "Aftermarket", rows: col.aftermarket },
+              ].map((group) => (
+                <div key={group.label} className="mb-4 last:mb-0">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-(--muted)">{group.label}</h3>
+                  <div className="space-y-2">
+                    {group.rows.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-(--card-border) px-2 py-2 text-xs text-(--muted)">None</div>
+                    ) : (
+                      group.rows.map((r) => (
+                        <a
+                          key={`${group.label}-${r.symbol}-${r.earningsDate ?? "na"}`}
+                          href={r.earningsLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-lg border border-(--card-border) px-2 py-2 text-xs hover:bg-(--background)"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              {r.logoUrl ? (
+                                <Image
+                                  src={r.logoUrl}
+                                  alt={`${r.shortName} logo`}
+                                  width={16}
+                                  height={16}
+                                  className="h-4 w-4 rounded-sm"
+                                  unoptimized
+                                />
                               ) : (
-                                <span className="text-(--muted)">No site</span>
+                                <div className="h-4 w-4 rounded-sm bg-(--card-border)" />
                               )}
+                              <span className="font-semibold">{r.symbol}</span>
                             </div>
+                            <span className="text-(--muted)">{r.reportTimeEt ?? "TBD"}</span>
                           </div>
-                        ))
-                      )}
-                    </div>
+                          <div className="mt-1 truncate text-(--muted)">{r.shortName}</div>
+                        </a>
+                      ))
+                    )}
                   </div>
-                ))}
-              </section>
-            );
-          })}
+                </div>
+              ))}
+            </section>
+          ))}
         </div>
       )}
     </div>

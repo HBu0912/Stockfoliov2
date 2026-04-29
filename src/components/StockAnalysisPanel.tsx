@@ -285,6 +285,8 @@ export function StockAnalysisPanel({
   const [data, setData] = useState<Payload | null>(null);
   const [allocation, setAllocation] = useState<PortfolioAllocation | null>(null);
   const [metricOrder, setMetricOrder] = useState<MetricId[]>(initialMetricOrder);
+  const [editingMetrics, setEditingMetrics] = useState(false);
+  const [dragMetricId, setDragMetricId] = useState<MetricId | null>(null);
 
   const [newsOffset, setNewsOffset] = useState(0);
   const newsLimit = 5;
@@ -483,6 +485,18 @@ export function StockAnalysisPanel({
     interval === "1D" && marketCloseIdx != null && chartRows.length > 1
       ? (marketCloseIdx / (chartRows.length - 1)) * 100
       : null;
+
+  function moveMetric(dragId: MetricId, dropId: MetricId) {
+    setMetricOrder((prev) => {
+      const from = prev.indexOf(dragId);
+      const to = prev.indexOf(dropId);
+      if (from < 0 || to < 0 || from === to) return prev;
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-3">
@@ -720,20 +734,18 @@ export function StockAnalysisPanel({
             )}
           </div>
 
-          <div className="mb-2 text-xs text-(--muted)">
-            Metrics are reorderable; your order is saved.
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold">Metrics</h4>
+            <button
+              type="button"
+              onClick={() => setEditingMetrics((v) => !v)}
+              className="rounded-md border border-(--card-border) px-2 py-1 text-xs hover:bg-(--card)"
+            >
+              {editingMetrics ? "Done" : "Edit"}
+            </button>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {metricOrder.map((id, idx) => {
-              const move = (dir: -1 | 1) =>
-                setMetricOrder((prev) => {
-                  const i = prev.indexOf(id);
-                  const j = i + dir;
-                  if (i < 0 || j < 0 || j >= prev.length) return prev;
-                  const next = [...prev];
-                  [next[i], next[j]] = [next[j], next[i]];
-                  return next;
-                });
+            {metricOrder.map((id) => {
               if (id === "next_earnings") {
                 return (
                   <MetricCard
@@ -744,8 +756,15 @@ export function StockAnalysisPanel({
                         ? `${formatEarningsDate(data.nextEarnings.at)}${data.nextEarnings.isEstimate ? " (est.)" : ""}`
                         : "—"
                     }
-                    onMoveUp={idx > 0 ? () => move(-1) : undefined}
-                    onMoveDown={idx < metricOrder.length - 1 ? () => move(1) : undefined}
+                    valueClassName="text-teal-400"
+                    draggable={editingMetrics}
+                    dragActive={dragMetricId === id}
+                    onDragStart={() => setDragMetricId(id)}
+                    onDragEnd={() => setDragMetricId(null)}
+                    onDrop={() => {
+                      if (editingMetrics && dragMetricId) moveMetric(dragMetricId, id);
+                      setDragMetricId(null);
+                    }}
                   />
                 );
               }
@@ -755,8 +774,14 @@ export function StockAnalysisPanel({
                     key={id}
                     label="52 Week Range"
                     value={`${formatUsd(data?.metrics.week52Low)} - ${formatUsd(data?.metrics.week52High)}`}
-                    onMoveUp={idx > 0 ? () => move(-1) : undefined}
-                    onMoveDown={idx < metricOrder.length - 1 ? () => move(1) : undefined}
+                    draggable={editingMetrics}
+                    dragActive={dragMetricId === id}
+                    onDragStart={() => setDragMetricId(id)}
+                    onDragEnd={() => setDragMetricId(null)}
+                    onDrop={() => {
+                      if (editingMetrics && dragMetricId) moveMetric(dragMetricId, id);
+                      setDragMetricId(null);
+                    }}
                     extra={
                       <div className="mt-2 h-2 rounded-full bg-(--card-border)">
                         <div className="relative h-2 rounded-full bg-sky-500/30" style={{ width: "100%" }}>
@@ -807,8 +832,14 @@ export function StockAnalysisPanel({
                   key={id}
                   label={row.label}
                   value={row.value}
-                  onMoveUp={idx > 0 ? () => move(-1) : undefined}
-                  onMoveDown={idx < metricOrder.length - 1 ? () => move(1) : undefined}
+                  draggable={editingMetrics}
+                  dragActive={dragMetricId === id}
+                  onDragStart={() => setDragMetricId(id)}
+                  onDragEnd={() => setDragMetricId(null)}
+                  onDrop={() => {
+                    if (editingMetrics && dragMetricId) moveMetric(dragMetricId, id);
+                    setDragMetricId(null);
+                  }}
                 />
               );
             })}
@@ -897,42 +928,50 @@ export function StockAnalysisPanel({
 function MetricCard({
   label,
   value,
-  onMoveUp,
-  onMoveDown,
+  valueClassName,
+  draggable,
+  dragActive,
+  onDragStart,
+  onDragEnd,
+  onDrop,
   extra,
 }: {
   label: string;
   value: string;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  valueClassName?: string;
+  draggable?: boolean;
+  dragActive?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  onDrop?: () => void;
   extra?: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-(--muted)">{label}</p>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onMoveUp}
-            disabled={!onMoveUp}
-            className="rounded border border-(--card-border) px-1 text-[10px] disabled:opacity-40"
-            aria-label={`Move ${label} up`}
-          >
-            ^
-          </button>
-          <button
-            type="button"
-            onClick={onMoveDown}
-            disabled={!onMoveDown}
-            className="rounded border border-(--card-border) px-1 text-[10px] disabled:opacity-40"
-            aria-label={`Move ${label} down`}
-          >
-            v
-          </button>
-        </div>
-      </div>
-      <p className="text-sm font-medium">{value}</p>
+    <div
+      draggable={Boolean(draggable)}
+      onDragStart={(e) => {
+        if (!draggable) return;
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart?.();
+      }}
+      onDragEnd={() => onDragEnd?.()}
+      onDragOver={(e) => {
+        if (!draggable) return;
+        e.preventDefault();
+      }}
+      onDrop={(e) => {
+        if (!draggable) return;
+        e.preventDefault();
+        onDrop?.();
+      }}
+      className={
+        "rounded-lg border border-(--card-border) bg-(--background) px-3 py-2 " +
+        (draggable ? "cursor-grab" : "") +
+        (dragActive ? " opacity-70 ring-2 ring-sky-400/60" : "")
+      }
+    >
+      <p className="text-xs text-(--muted)">{label}</p>
+      <p className={"text-sm font-medium " + (valueClassName ?? "")}>{value}</p>
       {extra}
     </div>
   );
