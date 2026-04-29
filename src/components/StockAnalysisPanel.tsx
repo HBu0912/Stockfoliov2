@@ -6,6 +6,7 @@ import {
   Line,
   LineChart,
   ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -285,6 +286,7 @@ export function StockAnalysisPanel({
     if (dragStartIdx == null || dragEndIdx == null || chartRows.length === 0) return null;
     const left = Math.max(0, Math.min(dragStartIdx, dragEndIdx));
     const right = Math.min(chartRows.length - 1, Math.max(dragStartIdx, dragEndIdx));
+    if (left === right) return null;
     const start = chartRows[left]?.close;
     const end = chartRows[right]?.close;
     if (start == null || end == null || start === 0) return null;
@@ -309,6 +311,26 @@ export function StockAnalysisPanel({
     },
     [chartRows.length]
   );
+
+  const marketOpenIdx = useMemo(() => {
+    if (interval !== "1D" || chartRows.length === 0) return null;
+    return (
+      chartRows.find((r) => {
+        const d = new Date(r.at);
+        return d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() >= 30);
+      })?.idx ?? null
+    );
+  }, [interval, chartRows]);
+
+  const marketCloseIdx = useMemo(() => {
+    if (interval !== "1D" || chartRows.length === 0) return null;
+    return (
+      chartRows.find((r) => {
+        const d = new Date(r.at);
+        return d.getHours() > 16 || (d.getHours() === 16 && d.getMinutes() >= 0);
+      })?.idx ?? null
+    );
+  }, [interval, chartRows]);
 
   return (
     <div className="space-y-3">
@@ -450,7 +472,25 @@ export function StockAnalysisPanel({
                     tickFormatter={(value) => chartRows[Number(value)]?.label ?? ""}
                   />
                   <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={56} />
-                  <Tooltip content={<PriceTooltip interval={interval} />} />
+                  <Tooltip content={<PriceTooltip interval={interval} />} cursor={false} />
+                  {interval === "1D" && marketOpenIdx != null && (
+                    <ReferenceLine
+                      x={marketOpenIdx}
+                      stroke="rgba(59,130,246,0.9)"
+                      strokeDasharray="4 4"
+                      ifOverflow="extendDomain"
+                      label={{ value: "Open 9:30", position: "top", fill: "rgba(59,130,246,0.9)", fontSize: 10 }}
+                    />
+                  )}
+                  {interval === "1D" && marketCloseIdx != null && (
+                    <ReferenceLine
+                      x={marketCloseIdx}
+                      stroke="rgba(251,146,60,0.9)"
+                      strokeDasharray="4 4"
+                      ifOverflow="extendDomain"
+                      label={{ value: "Close 4:00", position: "top", fill: "rgba(251,146,60,0.9)", fontSize: 10 }}
+                    />
+                  )}
                   {selectedRange && (
                     <ReferenceArea
                       x1={selectedRange.left}

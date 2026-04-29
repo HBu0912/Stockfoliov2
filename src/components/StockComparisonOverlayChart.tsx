@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
 
 export type CompareIntervalKey = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "5Y" | "ALL";
@@ -96,6 +106,28 @@ export function StockComparisonOverlayChart({
     });
   }, [series, interval]);
 
+  const marketOpenIdx = useMemo(() => {
+    if (interval !== "1D" || merged.length === 0) return null;
+    return (
+      (merged.find((row) => {
+        const at = String(row.at ?? "");
+        const d = new Date(at);
+        return d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() >= 30);
+      })?.idx as number | undefined) ?? null
+    );
+  }, [interval, merged]);
+
+  const marketCloseIdx = useMemo(() => {
+    if (interval !== "1D" || merged.length === 0) return null;
+    return (
+      (merged.find((row) => {
+        const at = String(row.at ?? "");
+        const d = new Date(at);
+        return d.getHours() > 16 || (d.getHours() === 16 && d.getMinutes() >= 0);
+      })?.idx as number | undefined) ?? null
+    );
+  }, [interval, merged]);
+
   return (
     <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
       <div>
@@ -121,6 +153,7 @@ export function StockComparisonOverlayChart({
               />
               <YAxis tickFormatter={(v) => `${v}%`} width={48} />
               <Tooltip
+                cursor={false}
                 formatter={(value: ValueType | undefined) => {
                   if (value == null) return "—";
                   const n = typeof value === "number" ? value : Number(value);
@@ -136,6 +169,22 @@ export function StockComparisonOverlayChart({
                   borderRadius: "12px",
                 }}
               />
+              {interval === "1D" && marketOpenIdx != null && (
+                <ReferenceLine
+                  x={marketOpenIdx}
+                  stroke="rgba(59,130,246,0.9)"
+                  strokeDasharray="4 4"
+                  ifOverflow="extendDomain"
+                />
+              )}
+              {interval === "1D" && marketCloseIdx != null && (
+                <ReferenceLine
+                  x={marketCloseIdx}
+                  stroke="rgba(251,146,60,0.9)"
+                  strokeDasharray="4 4"
+                  ifOverflow="extendDomain"
+                />
+              )}
               <Legend />
               {series.map((s, idx) => (
                 <Line
