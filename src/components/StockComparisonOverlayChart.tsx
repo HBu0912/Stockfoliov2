@@ -27,7 +27,7 @@ type SeriesPayload = {
 
 type MergedRow = Record<string, string | number>;
 
-const palette = ["#34d399", "#60a5fa", "#fbbf24", "#c084fc", "#fb7185"];
+const palette = ["#60a5fa", "#f59e0b", "#a78bfa", "#06b6d4", "#8b5cf6"];
 
 function formatXAxis(dateISO: string, interval: CompareIntervalKey): string {
   const d = new Date(dateISO);
@@ -298,6 +298,14 @@ export function StockComparisonOverlayChart({
   const chartBubbleLabel = selectedRange
     ? `${selectedRange.startLabel} → ${selectedRange.endLabel}`
     : `${interval}`;
+  const openMarkerLeftPct =
+    interval === "1D" && marketOpenIdx != null && merged.length > 1
+      ? (marketOpenIdx / (merged.length - 1)) * 100
+      : null;
+  const closeMarkerLeftPct =
+    interval === "1D" && marketCloseIdx != null && merged.length > 1
+      ? (marketCloseIdx / (merged.length - 1)) * 100
+      : null;
 
   return (
     <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
@@ -306,13 +314,7 @@ export function StockComparisonOverlayChart({
         <p className="text-xs text-(--muted)">Normalized to 0% at the start of the selected window.</p>
       </div>
 
-      <div
-        className={"relative mt-2 rounded-xl border border-(--card-border) bg-(--background) p-2 " + heightClassName}
-        onPointerDown={(e) => {
-          e.preventDefault();
-          window.getSelection()?.removeAllRanges();
-        }}
-      >
+      <div className={"relative mt-2 rounded-xl border border-(--card-border) bg-(--background) p-2 " + heightClassName}>
         {loading ? (
           <p className="px-2 py-3 text-sm text-(--muted)">Loading overlay...</p>
         ) : error ? (
@@ -424,7 +426,6 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
-                  label={{ value: "9:30 AM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                 />
               )}
               {interval === "1D" && marketCloseIdx != null && (
@@ -434,7 +435,6 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
-                  label={{ value: "4 PM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                 />
               )}
               <ReferenceLine y={0} stroke="rgba(148,163,184,0.7)" strokeDasharray="3 3" ifOverflow="extendDomain" />
@@ -483,6 +483,22 @@ export function StockComparisonOverlayChart({
                 </p>
               ))}
             </div>
+          </div>
+        )}
+        {openMarkerLeftPct != null && (
+          <div
+            className="pointer-events-none absolute top-2 -translate-x-1/2 rounded-full border border-(--card-border) bg-(--card)/95 px-2 py-0.5 text-[10px] text-(--muted) shadow-sm"
+            style={{ left: `${openMarkerLeftPct}%` }}
+          >
+            9:30 AM
+          </div>
+        )}
+        {closeMarkerLeftPct != null && (
+          <div
+            className="pointer-events-none absolute top-2 -translate-x-1/2 rounded-full border border-(--card-border) bg-(--card)/95 px-2 py-0.5 text-[10px] text-(--muted) shadow-sm"
+            style={{ left: `${closeMarkerLeftPct}%` }}
+          >
+            4 PM
           </div>
         )}
       </div>

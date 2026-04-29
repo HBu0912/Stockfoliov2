@@ -406,6 +406,14 @@ export function StockAnalysisPanel({
 
   const chartBubblePct = selectedRange?.pct ?? headerChange;
   const chartBubbleLabel = selectedRange ? `${selectedRange.startLabel} → ${selectedRange.endLabel}` : interval;
+  const openMarkerLeftPct =
+    interval === "1D" && marketOpenIdx != null && chartRows.length > 1
+      ? (marketOpenIdx / (chartRows.length - 1)) * 100
+      : null;
+  const closeMarkerLeftPct =
+    interval === "1D" && marketCloseIdx != null && chartRows.length > 1
+      ? (marketCloseIdx / (chartRows.length - 1)) * 100
+      : null;
 
   return (
     <div className="space-y-3">
@@ -486,13 +494,7 @@ export function StockAnalysisPanel({
             ))}
           </div>
 
-          <div
-            className="relative h-80 select-none rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              window.getSelection()?.removeAllRanges();
-            }}
-          >
+          <div className="relative h-80 select-none rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96">
             {loading ? (
               <p className="px-2 py-3 text-sm text-(--muted)">Loading chart...</p>
             ) : error ? (
@@ -582,7 +584,6 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{ value: "9:30 AM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                     />
                   )}
                   {interval === "1D" && marketCloseIdx != null && (
@@ -592,7 +593,6 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{ value: "4 PM", position: "insideBottom", fill: "rgba(148,163,184,0.95)", fontSize: 10 }}
                     />
                   )}
                   {!dragging && hoverIdx != null && (
@@ -631,6 +631,22 @@ export function StockAnalysisPanel({
                   {chartBubblePct > 0 ? "+" : ""}
                   {formatNumber(chartBubblePct, 2)}%
                 </span>
+              </div>
+            )}
+            {openMarkerLeftPct != null && (
+              <div
+                className="pointer-events-none absolute top-2 -translate-x-1/2 rounded-full border border-(--card-border) bg-(--card)/95 px-2 py-0.5 text-[10px] text-(--muted) shadow-sm"
+                style={{ left: `${openMarkerLeftPct}%` }}
+              >
+                9:30 AM
+              </div>
+            )}
+            {closeMarkerLeftPct != null && (
+              <div
+                className="pointer-events-none absolute top-2 -translate-x-1/2 rounded-full border border-(--card-border) bg-(--card)/95 px-2 py-0.5 text-[10px] text-(--muted) shadow-sm"
+                style={{ left: `${closeMarkerLeftPct}%` }}
+              >
+                4 PM
               </div>
             )}
           </div>
