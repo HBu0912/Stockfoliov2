@@ -199,13 +199,15 @@ export function StockComparisonOverlayChart({
   }, [interval, merged]);
 
   const xTickFormatter = useMemo(() => {
-    if (interval !== "1D") return () => "";
+    if (interval !== "1D") {
+      return (value: number) => String(merged[Number(value)]?.label ?? "");
+    }
     return (value: number) => {
       if (marketOpenIdx != null && value === marketOpenIdx) return "9:30 AM";
       if (marketCloseIdx != null && value === marketCloseIdx) return "4:00 PM";
       return "";
     };
-  }, [interval, marketOpenIdx, marketCloseIdx]);
+  }, [interval, marketOpenIdx, marketCloseIdx, merged]);
 
   const primarySymbol = series[0]?.symbol ?? null;
   const primaryWindowPct = useMemo(() => {
@@ -224,7 +226,7 @@ export function StockComparisonOverlayChart({
   const chartBubblePct = selectedRange?.pct ?? primaryWindowPct;
   const chartBubbleLabel = selectedRange
     ? `${selectedRange.symbol}: ${selectedRange.startLabel} → ${selectedRange.endLabel}`
-    : `${interval} window${primarySymbol ? ` · ${primarySymbol}` : ""}`;
+    : `${interval}${primarySymbol ? ` · ${primarySymbol}` : ""}`;
 
   return (
     <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
@@ -244,6 +246,7 @@ export function StockComparisonOverlayChart({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={merged}
+              margin={{ top: 20, right: 8, left: 0, bottom: 0 }}
               onMouseDown={(state) => {
                 const idx = readActiveIdx(state) ?? hoverIdx;
                 if (idx == null) return;
@@ -262,7 +265,7 @@ export function StockComparisonOverlayChart({
                   }
                   return;
                 }
-                setHoverIdx(idx);
+                if (idx !== hoverIdx) setHoverIdx(idx);
               }}
               onMouseUp={(state) => {
                 if (!dragging) return;
@@ -290,8 +293,8 @@ export function StockComparisonOverlayChart({
               <YAxis
                 domain={([min, max]) => {
                   if (typeof min !== "number" || typeof max !== "number") return [min, max];
-                  const pad = (max - min || Math.abs(max || 1)) * 0.12;
-                  return [min, max + pad];
+                  const span = max - min || Math.abs(max || 1);
+                  return [min - span * 0.06, max + span * 0.2];
                 }}
                 tickFormatter={(v) => `${v}%`}
                 tick={{ pointerEvents: "none" }}
@@ -364,9 +367,9 @@ export function StockComparisonOverlayChart({
           </ResponsiveContainer>
         )}
         {chartBubblePct != null && (
-          <div className="pointer-events-none absolute right-3 top-3 rounded-xl border border-(--card-border) bg-(--card)/95 px-3 py-1.5 text-xs shadow-sm">
-            <p className="text-[10px] text-(--muted)">{chartBubbleLabel}</p>
+          <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-(--card-border) bg-(--card)/95 px-3 py-1 text-xs shadow-sm">
             <span className={chartBubblePct < 0 ? "text-red-400" : "text-emerald-300"}>
+              <span className="mr-1 text-(--muted)">{chartBubbleLabel}</span>
               {chartBubblePct > 0 ? "+" : ""}
               {formatNumber(chartBubblePct, 2)}%
             </span>
