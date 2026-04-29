@@ -22,6 +22,18 @@ type EarningsItem = {
 
 type LooseObject = Record<string, unknown>;
 
+async function runWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length) {
+      const next = queue.shift();
+      if (!next) return;
+      await fn(next);
+    }
+  });
+  await Promise.all(workers);
+}
+
 function toNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
@@ -65,6 +77,13 @@ function toEtTimeLabel(minutes: number | null): string | null {
   return `${hour12}:${String(minute).padStart(2, "0")} ${suffix} ET`;
 }
 
+function toIsoOrNull(v: unknown): string | null {
+  if (!v) return null;
+  const d = new Date(v as string | number | Date);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 function asObject(v: unknown): LooseObject {
   return v && typeof v === "object" ? (v as LooseObject) : {};
 }
@@ -94,17 +113,26 @@ export async function GET(req: Request) {
   ];
 
   const out: EarningsItem[] = [];
-  await Promise.all(
-    symbols.map(async (symbol) => {
+  await runWithConcurrency(symbols, 6, async (symbol) => {
       try {
         const qs = await yahooFinance.quoteSummary(symbol, {
-          modules: ["calendarEvents", "summaryProfile", "price", "earningsHistory", "earningsTrend", "incomeStatementHistoryQuarterly"],
+          modules: ["calendarEvents", "summaryProfile", "price", "earningsHistory", "earningsTrend"],
         });
 
         const cal = asObject(pick(pick(qs, "calendarEvents"), "earnings"));
         const earningsDateRaw = pick(cal, "earningsDate");
-        const dateObj = Array.isArray(earningsDateRaw) ? earningsDateRaw[0] : earningsDateRaw;
-        const earningsDate = dateObj ? new Date(dateObj).toISOString() : null;
+        const earningsDateCandidates = Array.isArray(earningsDateRaw)
+          ? earningsDateRaw.map(toIsoOrNull).filter((x): x is string => Boolean(x))
+          : [toIsoOrNull(earningsDateRaw)].filter((x): x is string => Boolean(x));
+
+        let earningsDate = earningsDateCandidates[0] ?? null;
+        if (weekStart && weekEnd && earningsDateCandidates.length > 0) {
+          const inWeek = earningsDateCandidates.find((iso) => {
+            const at = new Date(iso).getTime();
+            return at >= weekStart.getTime() && at <= weekEnd.getTime();
+          });
+          if (inWeek) earningsDate = inWeek;
+        }
         if (weekStart && weekEnd && earningsDate) {
           const at = new Date(earningsDate).getTime();
           if (at < weekStart.getTime() || at > weekEnd.getTime()) return;
@@ -119,10 +147,7 @@ export async function GET(req: Request) {
         const trendRows = pick(pick(qs, "earningsTrend"), "trend");
         const trend = Array.isArray(trendRows) ? asObject(trendRows[0]) : {};
         const revenueEstimate = toNum(pick(asObject(pick(trend, "revenueEstimate")), "avg"));
-        const incomeRows = pick(pick(qs, "incomeStatementHistoryQuarterly"), "incomeStatementHistory");
-        const income = Array.isArray(incomeRows) ? asObject(incomeRows[0]) : {};
-        const totalRevenue = pick(income, "totalRevenue");
-        const revenueActual = toNum(pick(asObject(totalRevenue), "raw") ?? totalRevenue);
+        const revenueActual = null;
         const revenueBeat = revenueActual != null && revenueEstimate != null ? revenueActual >= revenueEstimate : null;
 
         const fallbackSession = sessionFromCallTime(pick(cal, "earningsCallTime"));
@@ -147,8 +172,7 @@ export async function GET(req: Request) {
       } catch {
         // Ignore per-symbol failures.
       }
-    })
-  );
+    });
 
   out.sort((a, b) => {
     const at = a.earningsDate ? new Date(a.earningsDate).getTime() : Number.MAX_SAFE_INTEGER;
