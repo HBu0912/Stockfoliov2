@@ -18,35 +18,30 @@ type Item = {
   revenueBeat: boolean | null;
 };
 
-function dateKey(v: string | null) {
-  if (!v) return "No date";
-  return new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function startOfWeekMonday(d: Date): Date {
+  const out = new Date(d);
+  out.setHours(0, 0, 0, 0);
+  const day = out.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  out.setDate(out.getDate() + diff);
+  return out;
+}
+
+function dayLabel(d: Date): string {
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 }
 
 export default function EarningsCalendarPage() {
-  const [symbolsInput, setSymbolsInput] = useState("AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,NFLX,AVGO");
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/earnings/calendar?symbols=${encodeURIComponent(symbolsInput)}`, { cache: "no-store" });
-      const json = (await res.json()) as { items?: Item[] };
-      setItems(json.items ?? []);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [weekOffset, setWeekOffset] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/earnings/calendar?symbols=${encodeURIComponent(symbolsInput)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch("/api/earnings/calendar", { cache: "no-store" });
         const json = (await res.json()) as { items?: Item[] };
         if (!cancelled) setItems(json.items ?? []);
       } finally {
@@ -56,63 +51,102 @@ export default function EarningsCalendarPage() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const weekStart = useMemo(() => {
+    const base = startOfWeekMonday(new Date());
+    const shifted = new Date(base);
+    shifted.setDate(base.getDate() + weekOffset * 7);
+    return shifted;
+  }, [weekOffset]);
+
+  const weekdays = useMemo(() => {
+    return Array.from({ length: 5 }, (_, i) => {
+      const day = new Date(weekStart);
+      day.setDate(weekStart.getDate() + i);
+      return day;
+    });
+  }, [weekStart]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Item[]>();
+    for (const day of weekdays) {
+      map.set(day.toDateString(), []);
+    }
     for (const it of items) {
-      const key = dateKey(it.earningsDate);
+      if (!it.earningsDate) continue;
+      const dt = new Date(it.earningsDate);
+      if (dt < weekdays[0] || dt > new Date(weekdays[4].getTime() + 24 * 60 * 60 * 1000 - 1)) continue;
+      const k = startOfWeekMonday(dt);
+      const idx = Math.floor((dt.getTime() - k.getTime()) / (24 * 60 * 60 * 1000));
+      if (idx < 0 || idx > 4) continue;
+      const matchDay = new Date(k);
+      matchDay.setDate(k.getDate() + idx);
+      const key = matchDay.toDateString();
       map.set(key, [...(map.get(key) ?? []), it]);
     }
     return [...map.entries()];
-  }, [items]);
+  }, [items, weekdays]);
 
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-5 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Earnings Calendar</h1>
         <p className="mt-1 text-sm text-(--muted)">
-          Clear daily earnings view with premarket and aftermarket grouping, plus beat/miss checks.
+          Week-by-week earnings view grouped by weekday, premarket, and aftermarket.
         </p>
       </section>
 
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-        <form
-          className="flex flex-col gap-2 sm:flex-row sm:items-end"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void load();
-          }}
-        >
-          <label className="flex-1">
-            <span className="mb-1 block text-sm text-(--muted)">Symbols (comma separated)</span>
-            <input
-              className="w-full rounded-lg border border-(--card-border) bg-transparent px-3 py-2 text-sm"
-              value={symbolsInput}
-              onChange={(e) => setSymbolsInput(e.target.value)}
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500"
-          >
-            Refresh
-          </button>
-        </form>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-(--muted)">
+            {weekdays[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} -{" "}
+            {weekdays[4].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setWeekOffset((w) => w - 1)}
+              className="rounded-lg border border-(--card-border) px-3 py-1.5 text-sm hover:bg-(--card)"
+            >
+              Prev Week
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeekOffset(0)}
+              className="rounded-lg border border-(--card-border) px-3 py-1.5 text-sm hover:bg-(--card)"
+              title="Calendar: jump to current week"
+            >
+              📅 This Week
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeekOffset((w) => w + 1)}
+              className="rounded-lg border border-(--card-border) px-3 py-1.5 text-sm hover:bg-(--card)"
+            >
+              Next Week
+            </button>
+          </div>
+        </div>
+      </section>
+      <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+        <div className="text-sm text-(--muted)">
+          Earnings are auto-loaded for this week. Use the calendar week toggle above to browse other weeks.
+        </div>
       </section>
 
       {loading ? (
         <div className="text-sm text-(--muted)">Loading earnings calendar...</div>
       ) : (
         <div className="space-y-4">
-          {grouped.map(([day, dayItems]) => {
+          {grouped.map(([dayKey, dayItems], idx) => {
+            const day = weekdays[idx];
             const pre = dayItems.filter((x) => x.session === "premarket");
             const post = dayItems.filter((x) => x.session === "aftermarket");
             const unknown = dayItems.filter((x) => x.session === "time-unknown");
             return (
-              <section key={day} className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
-                <h2 className="mb-3 text-lg font-semibold">{day}</h2>
+              <section key={dayKey} className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+                <h2 className="mb-3 text-lg font-semibold">{dayLabel(day)}</h2>
 
                 {[
                   { label: "Premarket", rows: pre },
@@ -128,7 +162,7 @@ export default function EarningsCalendarPage() {
                         </div>
                       ) : (
                         g.rows.map((r) => (
-                          <div key={`${day}-${g.label}-${r.symbol}`} className="grid gap-2 rounded-lg border border-(--card-border) px-3 py-2 text-sm lg:grid-cols-[80px_minmax(0,1.2fr)_1fr_1fr_220px]">
+                          <div key={`${dayKey}-${g.label}-${r.symbol}`} className="grid gap-2 rounded-lg border border-(--card-border) px-3 py-2 text-sm lg:grid-cols-[80px_minmax(0,1.2fr)_1fr_1fr_220px]">
                             <div className="font-semibold">{r.symbol}</div>
                             <div className="truncate text-(--muted)">{r.shortName}</div>
                             <div>
