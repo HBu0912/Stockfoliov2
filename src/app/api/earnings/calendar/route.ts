@@ -21,6 +21,8 @@ type EarningsItem = {
   logoUrl: string | null;
 };
 
+type ScreenerQuoteLike = Record<string, unknown>;
+
 async function runWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
   const queue = [...items];
   const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
@@ -128,6 +130,13 @@ function logoFromWebsite(website: string | null): string | null {
   }
 }
 
+function withinWeek(iso: string | null, weekStart: Date | null, weekEnd: Date | null): boolean {
+  if (!iso) return false;
+  if (!weekStart || !weekEnd) return true;
+  const at = new Date(iso).getTime();
+  return at >= weekStart.getTime() && at <= weekEnd.getTime();
+}
+
 export async function GET(req: Request) {
   const s = await getSession();
   if (!s) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -149,6 +158,7 @@ export async function GET(req: Request) {
   ];
 
   const out: EarningsItem[] = [];
+  const outBySymbol = new Map<string, EarningsItem>();
   let attempted = 0;
   let withAnyDate = 0;
   let inRequestedWeek = 0;
@@ -185,10 +195,7 @@ export async function GET(req: Request) {
           });
           if (inWeek) earningsDate = inWeek;
         }
-        if (weekStart && weekEnd && earningsDate) {
-          const at = new Date(earningsDate).getTime();
-          if (at < weekStart.getTime() || at > weekEnd.getTime()) return;
-        }
+        if (!withinWeek(earningsDate, weekStart, weekEnd)) return;
         if (!earningsDate) return;
         inRequestedWeek += 1;
 
@@ -203,7 +210,7 @@ export async function GET(req: Request) {
         const minutesEt = parseEtMinutesFromIso(earningsDate);
         const session = sessionFromMinutes(minutesEt, fallbackSession);
 
-        out.push({
+        const row: EarningsItem = {
           symbol,
           shortName,
           earningsDate,
@@ -218,11 +225,58 @@ export async function GET(req: Request) {
           revenueBeat,
           reportTimeEt: toEtTimeLabel(minutesEt),
           logoUrl: logoFromWebsite(website),
-        });
+        };
+        outBySymbol.set(symbol, row);
       } catch {
         // Ignore per-symbol failures.
       }
     });
+
+  // Secondary fallback: Yahoo screeners often include earnings timestamps even when quote paths do not.
+  if (outBySymbol.size === 0) {
+    const scrIds = ["day_gainers", "day_losers", "most_actives", "growth_technology_stocks"] as const;
+    await runWithConcurrency([...scrIds], 2, async (scrId) => {
+      try {
+        const result = (await yahooFinance.screener({ scrIds: scrId, count: 250 })) as Record<string, unknown>;
+        const quotes = Array.isArray(result.quotes) ? (result.quotes as ScreenerQuoteLike[]) : [];
+        for (const q of quotes) {
+          const symbol = String(q.symbol ?? "").toUpperCase().trim();
+          if (!symbol || outBySymbol.has(symbol)) continue;
+          const earningsDateCandidates = [
+            toIsoFromUnknown(q.earningsTimestamp),
+            toIsoFromUnknown(q.earningsTimestampStart),
+            toIsoFromUnknown(q.earningsTimestampEnd),
+            toIsoFromUnknown(q.earningsCallTimestampStart),
+            toIsoFromUnknown(q.earningsCallTimestampEnd),
+          ].filter((x): x is string => Boolean(x));
+          const earningsDate = earningsDateCandidates.find((iso) => withinWeek(iso, weekStart, weekEnd)) ?? null;
+          if (!earningsDate) continue;
+          const minutesEt = parseEtMinutesFromIso(earningsDate);
+          const session = sessionFromMinutes(minutesEt, "time-unknown");
+          outBySymbol.set(symbol, {
+            symbol,
+            shortName: String(q.shortName ?? q.longName ?? symbol),
+            earningsDate,
+            session,
+            website: null,
+            earningsLink: `https://finance.yahoo.com/quote/${symbol}/earnings`,
+            epsEstimate: toNum(q.epsForward),
+            epsActual: toNum(q.epsCurrentYear),
+            epsBeat: null,
+            revenueEstimate: null,
+            revenueActual: null,
+            revenueBeat: null,
+            reportTimeEt: toEtTimeLabel(minutesEt),
+            logoUrl: null,
+          });
+        }
+      } catch {
+        // ignore screener failures
+      }
+    });
+  }
+
+  out.push(...outBySymbol.values());
 
   out.sort((a, b) => {
     const at = a.earningsDate ? new Date(a.earningsDate).getTime() : Number.MAX_SAFE_INTEGER;
