@@ -134,8 +134,12 @@ export async function GET(req: Request) {
   ];
 
   const out: EarningsItem[] = [];
+  let attempted = 0;
+  let withAnyDate = 0;
+  let inRequestedWeek = 0;
   await runWithConcurrency(symbols, 6, async (symbol) => {
       try {
+        attempted += 1;
         const q = (await yahooFinance.quote(symbol)) as Record<string, unknown>;
         let website: string | null = null;
         let shortName = String(q.shortName ?? q.longName ?? symbol);
@@ -156,6 +160,7 @@ export async function GET(req: Request) {
           if (typeof price?.shortName === "string") shortName = price.shortName;
           if (typeof price?.longName === "string" && shortName === symbol) shortName = price.longName;
         }
+        if (earningsDateCandidates.length > 0) withAnyDate += 1;
 
         let earningsDate = earningsDateCandidates[0] ?? null;
         if (weekStart && weekEnd && earningsDateCandidates.length > 0) {
@@ -170,6 +175,7 @@ export async function GET(req: Request) {
           if (at < weekStart.getTime() || at > weekEnd.getTime()) return;
         }
         if (!earningsDate) return;
+        inRequestedWeek += 1;
 
         const epsEstimate = toNum(q.epsForward);
         const epsActual = toNum(q.epsCurrentYear);
@@ -209,5 +215,15 @@ export async function GET(req: Request) {
     return at - bt;
   });
 
-  return NextResponse.json({ items: out });
+  return NextResponse.json({
+    items: out,
+    meta: {
+      attempted,
+      withAnyDate,
+      inRequestedWeek,
+      returned: out.length,
+      weekStart: weekStart?.toISOString() ?? null,
+      weekEnd: weekEnd?.toISOString() ?? null,
+    },
+  });
 }

@@ -21,6 +21,15 @@ type Item = {
   logoUrl: string | null;
 };
 
+type FetchMeta = {
+  attempted: number;
+  withAnyDate: number;
+  inRequestedWeek: number;
+  returned: number;
+  weekStart: string | null;
+  weekEnd: string | null;
+};
+
 function startOfWeekMonday(d: Date): Date {
   const out = new Date(d);
   out.setHours(0, 0, 0, 0);
@@ -38,6 +47,8 @@ export default function EarningsCalendarPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchMeta, setFetchMeta] = useState<FetchMeta | null>(null);
 
   const weekStart = useMemo(() => {
     const base = startOfWeekMonday(new Date());
@@ -58,6 +69,7 @@ export default function EarningsCalendarPage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setFetchError(null);
       try {
         const weekEnd = new Date(weekdays[4]);
         weekEnd.setHours(23, 59, 59, 999);
@@ -66,8 +78,25 @@ export default function EarningsCalendarPage() {
           weekEnd: weekEnd.toISOString(),
         });
         const res = await fetch(`/api/earnings/calendar?${params.toString()}`, { cache: "no-store" });
-        const json = (await res.json()) as { items?: Item[] };
-        if (!cancelled) setItems(json.items ?? []);
+        const json = (await res.json()) as { items?: Item[]; meta?: FetchMeta; error?: string };
+        if (!res.ok) {
+          if (!cancelled) {
+            setItems([]);
+            setFetchMeta(null);
+            setFetchError(json.error ?? "Failed to load earnings.");
+          }
+          return;
+        }
+        if (!cancelled) {
+          setItems(json.items ?? []);
+          setFetchMeta(json.meta ?? null);
+        }
+      } catch {
+        if (!cancelled) {
+          setItems([]);
+          setFetchMeta(null);
+          setFetchError("Request failed while loading earnings.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -140,6 +169,22 @@ export default function EarningsCalendarPage() {
       </section>
       <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
         <div className="text-sm text-(--muted)">Premarket = before 9:30 AM ET. Aftermarket = 4:00 PM ET or later.</div>
+      </section>
+      <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 text-sm shadow-sm">
+        {loading ? (
+          <div className="text-(--muted)">Fetch status: loading earnings data...</div>
+        ) : fetchError ? (
+          <div className="text-rose-600">Fetch status: {fetchError}</div>
+        ) : (
+          <div className="space-y-1">
+            <div className="text-emerald-600">
+              Fetch status: API returned {fetchMeta?.returned ?? items.length} earnings entries.
+            </div>
+            <div className="text-(--muted)">
+              Attempted symbols: {fetchMeta?.attempted ?? 0} | Symbols with an earnings date: {fetchMeta?.withAnyDate ?? 0} | In selected week: {fetchMeta?.inRequestedWeek ?? 0}
+            </div>
+          </div>
+        )}
       </section>
 
       {loading ? (
