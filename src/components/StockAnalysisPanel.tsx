@@ -364,7 +364,19 @@ export function StockAnalysisPanel({
     );
   }, [interval, chartRows, latestNyDateKey]);
 
+  const xTickFormatter = useMemo(() => {
+    if (interval !== "1D") return () => "";
+    return (value: number) => {
+      if (marketOpenIdx != null && value === marketOpenIdx) return "9:30 AM";
+      if (marketCloseIdx != null && value === marketCloseIdx) return "4:00 PM";
+      return "";
+    };
+  }, [interval, marketOpenIdx, marketCloseIdx]);
+
   const chartBubblePct = selectedRange?.pct ?? headerChange;
+  const chartBubbleLabel = selectedRange
+    ? `${selectedRange.startLabel} → ${selectedRange.endLabel}`
+    : `${interval} window`;
 
   return (
     <div className="space-y-3">
@@ -372,18 +384,7 @@ export function StockAnalysisPanel({
         <div>
           <h3 className="text-lg font-semibold">
             {data?.symbol ?? symbol.toUpperCase()}
-            <span className="ml-2 text-sm font-medium text-(--muted)">
-              {formatUsd(data?.metrics.price)} · {interval}
-            </span>
-            <span
-              className={
-                "ml-2 text-sm font-semibold " + (isNegative ? "text-red-400" : "text-emerald-300")
-              }
-            >
-              {headerChange == null
-                ? "—"
-                : `${headerChange > 0 ? "+" : ""}${formatNumber(headerChange, 2)}%`}
-            </span>
+            <span className="ml-2 text-sm font-medium text-(--muted)">{formatUsd(data?.metrics.price)}</span>
           </h3>
           <p className="text-sm text-(--muted)">{data?.name ?? "Loading company..."}</p>
           <p className="mt-1 text-xs text-(--muted)">
@@ -504,12 +505,20 @@ export function StockAnalysisPanel({
                   <XAxis
                     dataKey="idx"
                     minTickGap={28}
-                    tick={false}
+                    tick={interval === "1D" ? { fontSize: 11, fill: "rgba(148,163,184,0.95)" } : false}
                     axisLine={{ stroke: "rgba(148,163,184,0.6)" }}
                     tickLine={false}
-                    tickFormatter={(value) => chartRows[Number(value)]?.label ?? ""}
+                    tickFormatter={xTickFormatter}
                   />
-                  <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={56} />
+                  <YAxis
+                    domain={([min, max]) => {
+                      if (typeof min !== "number" || typeof max !== "number") return [min, max];
+                      const pad = (max - min || Math.abs(max || 1)) * 0.12;
+                      return [min, max + pad];
+                    }}
+                    tick={{ fontSize: 11, pointerEvents: "none" }}
+                    width={56}
+                  />
                   <Tooltip content={<PriceTooltip interval={interval} />} cursor={false} />
                   {interval === "1D" && marketOpenIdx != null && (
                     <ReferenceLine
@@ -518,12 +527,6 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{
-                        value: "9:30",
-                        position: "insideBottom",
-                        fill: "rgba(148,163,184,0.95)",
-                        fontSize: 10,
-                      }}
                     />
                   )}
                   {interval === "1D" && marketCloseIdx != null && (
@@ -533,12 +536,6 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{
-                        value: "4:00",
-                        position: "insideBottom",
-                        fill: "rgba(148,163,184,0.95)",
-                        fontSize: 10,
-                      }}
                     />
                   )}
                   {!dragging && hoverIdx != null && (
@@ -569,7 +566,8 @@ export function StockAnalysisPanel({
               </ResponsiveContainer>
             )}
             {chartBubblePct != null && (
-              <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-(--card-border) bg-(--card)/95 px-3 py-1 text-xs shadow-sm">
+              <div className="pointer-events-none absolute right-3 top-3 rounded-xl border border-(--card-border) bg-(--card)/95 px-3 py-1.5 text-xs shadow-sm">
+                <p className="text-[10px] text-(--muted)">{chartBubbleLabel}</p>
                 <span className={chartBubblePct < 0 ? "text-red-400" : "text-emerald-300"}>
                   {chartBubblePct > 0 ? "+" : ""}
                   {formatNumber(chartBubblePct, 2)}%
