@@ -118,6 +118,19 @@ function formatTooltipDate(dateISO: string, interval: IntervalKey): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function minutesInNewYork(dateISO: string): number {
+  const d = new Date(dateISO);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
 function PriceTooltip({
   active,
   payload,
@@ -316,8 +329,7 @@ export function StockAnalysisPanel({
     if (interval !== "1D" || chartRows.length === 0) return null;
     return (
       chartRows.find((r) => {
-        const d = new Date(r.at);
-        return d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() >= 30);
+        return minutesInNewYork(r.at) >= 9 * 60 + 30;
       })?.idx ?? null
     );
   }, [interval, chartRows]);
@@ -326,8 +338,7 @@ export function StockAnalysisPanel({
     if (interval !== "1D" || chartRows.length === 0) return null;
     return (
       chartRows.find((r) => {
-        const d = new Date(r.at);
-        return d.getHours() > 16 || (d.getHours() === 16 && d.getMinutes() >= 0);
+        return minutesInNewYork(r.at) >= 16 * 60;
       })?.idx ?? null
     );
   }, [interval, chartRows]);
@@ -477,18 +488,20 @@ export function StockAnalysisPanel({
                     <ReferenceLine
                       x={marketOpenIdx}
                       stroke="rgba(59,130,246,0.9)"
+                      strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{ value: "Open 9:30", position: "top", fill: "rgba(59,130,246,0.9)", fontSize: 10 }}
+                      label={{ value: "Open 9:30", position: "insideTop", fill: "rgba(59,130,246,0.95)", fontSize: 10 }}
                     />
                   )}
                   {interval === "1D" && marketCloseIdx != null && (
                     <ReferenceLine
                       x={marketCloseIdx}
                       stroke="rgba(251,146,60,0.9)"
+                      strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
-                      label={{ value: "Close 4:00", position: "top", fill: "rgba(251,146,60,0.9)", fontSize: 10 }}
+                      label={{ value: "Close 4:00", position: "insideTop", fill: "rgba(251,146,60,0.95)", fontSize: 10 }}
                     />
                   )}
                   {selectedRange && (

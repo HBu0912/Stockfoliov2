@@ -48,6 +48,19 @@ function normalizedMap(points: ChartPoint[]): Map<string, number> {
   return map;
 }
 
+function minutesInNewYork(dateISO: string): number {
+  const d = new Date(dateISO);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
 export function StockComparisonOverlayChart({
   symbols,
   interval,
@@ -111,8 +124,7 @@ export function StockComparisonOverlayChart({
     return (
       (merged.find((row) => {
         const at = String(row.at ?? "");
-        const d = new Date(at);
-        return d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() >= 30);
+        return minutesInNewYork(at) >= 9 * 60 + 30;
       })?.idx as number | undefined) ?? null
     );
   }, [interval, merged]);
@@ -122,8 +134,7 @@ export function StockComparisonOverlayChart({
     return (
       (merged.find((row) => {
         const at = String(row.at ?? "");
-        const d = new Date(at);
-        return d.getHours() > 16 || (d.getHours() === 16 && d.getMinutes() >= 0);
+        return minutesInNewYork(at) >= 16 * 60;
       })?.idx as number | undefined) ?? null
     );
   }, [interval, merged]);
@@ -173,6 +184,7 @@ export function StockComparisonOverlayChart({
                 <ReferenceLine
                   x={marketOpenIdx}
                   stroke="rgba(59,130,246,0.9)"
+                  strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
                 />
@@ -181,6 +193,7 @@ export function StockComparisonOverlayChart({
                 <ReferenceLine
                   x={marketCloseIdx}
                   stroke="rgba(251,146,60,0.9)"
+                  strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
                 />

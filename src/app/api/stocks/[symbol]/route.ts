@@ -17,9 +17,7 @@ function chartWindow(interval: IntervalKey, firstTradeDate: Date | null) {
   const ytdStart = new Date(now.getFullYear(), 0, 1);
   const day = 24 * 60 * 60 * 1000;
   if (interval === "1D") {
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    return { period1: startOfDay, period2: now, chartInterval: "5m" as const };
+    return { period1: new Date(now.getTime() - day), period2: now, chartInterval: "5m" as const };
   }
   if (interval === "1W") {
     return { period1: new Date(now.getTime() - 7 * day), period2: now, chartInterval: "30m" as const };
@@ -44,36 +42,6 @@ function chartWindow(interval: IntervalKey, firstTradeDate: Date | null) {
     period2: now,
     chartInterval: "1mo" as const,
   };
-}
-
-function buildOneDayTimeline(
-  points: Array<{ at: string; close: number }>,
-  seedPrice: number | null
-): Array<{ at: string; close: number }> {
-  const now = new Date();
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const stepMs = 5 * 60 * 1000;
-
-  const byBucket = new Map<number, number>();
-  for (const p of points) {
-    const t = new Date(p.at).getTime();
-    const bucket = start.getTime() + Math.round((t - start.getTime()) / stepMs) * stepMs;
-    if (bucket >= start.getTime() && bucket <= now.getTime()) {
-      byBucket.set(bucket, p.close);
-    }
-  }
-
-  let last = seedPrice;
-  const filled: Array<{ at: string; close: number }> = [];
-  for (let t = start.getTime(); t <= now.getTime(); t += stepMs) {
-    const exact = byBucket.get(t);
-    if (exact != null) last = exact;
-    if (last != null) {
-      filled.push({ at: new Date(t).toISOString(), close: last });
-    }
-  }
-  return filled;
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ symbol: string }> }) {
@@ -108,7 +76,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
           "recommendationTrend",
         ],
       }),
-      yahoo.chart(symbol, { period1, period2, interval: chartInterval, includePrePost: interval === "1D" }),
+      yahoo.chart(symbol, { period1, period2, interval: chartInterval }),
     ]);
 
     let newsFetchCount = Math.min(200, Math.max(20, desiredEnd));
@@ -165,17 +133,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       guard += 1;
     }
 
-    const rawPoints =
+    const points =
       chart.quotes
         ?.filter((q) => q.date && q.close != null)
         .map((q) => ({
           at: q.date.toISOString(),
           close: Number(q.close),
         })) ?? [];
-    const points =
-      interval === "1D"
-        ? buildOneDayTimeline(rawPoints, n(quote.regularMarketPreviousClose))
-        : rawPoints;
 
     const current = n(quote.regularMarketPrice) ?? n(quote.postMarketPrice) ?? n(quote.preMarketPrice);
     const low52 = n(quote.fiftyTwoWeekLow);
