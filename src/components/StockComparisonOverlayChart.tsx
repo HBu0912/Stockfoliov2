@@ -301,7 +301,7 @@ export function StockComparisonOverlayChart({
               <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
               <XAxis
                 dataKey="idx"
-                tick={interval === "1D" ? { fontSize: 11, fill: "rgba(148,163,184,0.95)" } : false}
+                tick={{ fontSize: 11, fill: "rgba(148,163,184,0.95)" }}
                 axisLine={{ stroke: "rgba(148,163,184,0.6)" }}
                 tickLine={false}
                 tickFormatter={xTickFormatter}
@@ -313,7 +313,7 @@ export function StockComparisonOverlayChart({
                   const span = max - min || Math.abs(max || 1);
                   return [min - span * 0.06, max + span * 0.2];
                 }}
-                tickFormatter={(v) => `${v}%`}
+                tickFormatter={(v) => formatPercentTick(typeof v === "number" ? v : Number(v))}
                 tick={{ pointerEvents: "none" }}
                 width={48}
               />
@@ -352,6 +352,7 @@ export function StockComparisonOverlayChart({
                   ifOverflow="extendDomain"
                 />
               )}
+              <ReferenceLine y={0} stroke="rgba(148,163,184,0.7)" strokeDasharray="3 3" ifOverflow="extendDomain" />
               {!dragging && hoverIdx != null && (
                 <ReferenceLine
                   x={hoverIdx}
@@ -403,4 +404,8 @@ export function StockComparisonOverlayChart({
 function formatNumber(n: number | null | undefined, digits = 2): string {
   if (n == null || Number.isNaN(n)) return "—";
   return n.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+}
+
+function formatPercentTick(v: number): string {
+  return `${v.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`;
 }
