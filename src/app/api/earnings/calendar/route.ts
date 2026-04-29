@@ -193,9 +193,8 @@ export async function GET(req: Request) {
           });
           if (inWeek) earningsDate = inWeek;
         }
-        if (!withinWeek(earningsDate, weekStart, weekEnd)) return;
         if (!earningsDate) return;
-        inRequestedWeek += 1;
+        if (withinWeek(earningsDate, weekStart, weekEnd)) inRequestedWeek += 1;
 
         const epsEstimate = toNum(q.epsForward);
         const epsActual = toNum(q.epsCurrentYear);
@@ -247,7 +246,10 @@ export async function GET(req: Request) {
             toIsoFromUnknown(q.earningsCallTimestampStart),
             toIsoFromUnknown(q.earningsCallTimestampEnd),
           ].filter((x): x is string => Boolean(x));
-          const earningsDate = earningsDateCandidates.find((iso) => withinWeek(iso, weekStart, weekEnd)) ?? null;
+          const earningsDate =
+            earningsDateCandidates.find((iso) => withinWeek(iso, weekStart, weekEnd)) ??
+            earningsDateCandidates[0] ??
+            null;
           if (!earningsDate) continue;
           const minutesEt = parseEtMinutesFromIso(earningsDate);
           const session = sessionFromMinutes(minutesEt, "time-unknown");
