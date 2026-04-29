@@ -166,25 +166,23 @@ export async function GET(req: Request) {
       try {
         attempted += 1;
         const q = (await yahooFinance.quote(symbol)) as Record<string, unknown>;
-        let website: string | null = null;
-        let shortName = String(q.shortName ?? q.longName ?? symbol);
+        const qs = (await yahooFinance.quoteSummary(symbol, {
+          modules: ["calendarEvents", "summaryProfile", "price"],
+        })) as Record<string, unknown>;
+        const profile = qs.summaryProfile as Record<string, unknown> | undefined;
+        const price = qs.price as Record<string, unknown> | undefined;
+        const website: string | null = typeof profile?.website === "string" ? profile.website : null;
+        const shortName = String(
+          price?.shortName ?? price?.longName ?? q.shortName ?? q.longName ?? symbol
+        );
+
+        const calDates = extractCalendarDateCandidates(qs);
         const earningsDateCandidates = [
+          ...calDates,
           toIsoFromUnknown(q.earningsTimestamp),
           toIsoFromUnknown(q.earningsTimestampStart),
           toIsoFromUnknown(q.earningsTimestampEnd),
         ].filter((x): x is string => Boolean(x));
-
-        if (earningsDateCandidates.length === 0) {
-          const qs = (await yahooFinance.quoteSummary(symbol, {
-            modules: ["calendarEvents", "summaryProfile", "price"],
-          })) as Record<string, unknown>;
-          earningsDateCandidates.push(...extractCalendarDateCandidates(qs));
-          const profile = qs.summaryProfile as Record<string, unknown> | undefined;
-          website = typeof profile?.website === "string" ? profile.website : null;
-          const price = qs.price as Record<string, unknown> | undefined;
-          if (typeof price?.shortName === "string") shortName = price.shortName;
-          if (typeof price?.longName === "string" && shortName === symbol) shortName = price.longName;
-        }
         if (earningsDateCandidates.length > 0) withAnyDate += 1;
 
         let earningsDate = earningsDateCandidates[0] ?? null;

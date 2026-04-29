@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Line,
   LineChart,
@@ -16,6 +16,35 @@ import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 
 const intervals = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "ALL"] as const;
 type IntervalKey = (typeof intervals)[number];
+const LS_METRIC_ORDER = "pf-stock-analysis-metric-order-v1";
+const DEFAULT_METRIC_ORDER = [
+  "next_earnings",
+  "market_cap",
+  "sector",
+  "industry",
+  "beta",
+  "pe",
+  "forward_pe",
+  "peg",
+  "price_book",
+  "enterprise_value",
+  "ev_revenue",
+  "ev_ebitda",
+  "profit_margin",
+  "roe",
+  "div_yield",
+  "eps_ttm",
+  "eps_fwd",
+  "annual_div",
+  "chg_52w",
+  "avg_50d",
+  "avg_200d",
+  "vol_day",
+  "vol_10d",
+  "vol_3m",
+  "range_52w",
+] as const;
+type MetricId = (typeof DEFAULT_METRIC_ORDER)[number];
 
 type PortfolioAllocation = {
   inPortfolio: boolean;
@@ -139,6 +168,23 @@ function formatEarningsDate(dateISO: string): string {
   });
 }
 
+function initialMetricOrder(): MetricId[] {
+  if (typeof window === "undefined") return [...DEFAULT_METRIC_ORDER];
+  try {
+    const raw = window.localStorage.getItem(LS_METRIC_ORDER);
+    if (!raw) return [...DEFAULT_METRIC_ORDER];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [...DEFAULT_METRIC_ORDER];
+    const cleaned = parsed.filter((x): x is MetricId =>
+      DEFAULT_METRIC_ORDER.includes(x as MetricId)
+    );
+    const missing = DEFAULT_METRIC_ORDER.filter((id) => !cleaned.includes(id));
+    return [...cleaned, ...missing];
+  } catch {
+    return [...DEFAULT_METRIC_ORDER];
+  }
+}
+
 function minutesInNewYork(dateISO: string): number {
   const d = new Date(dateISO);
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -238,6 +284,7 @@ export function StockAnalysisPanel({
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Payload | null>(null);
   const [allocation, setAllocation] = useState<PortfolioAllocation | null>(null);
+  const [metricOrder, setMetricOrder] = useState<MetricId[]>(initialMetricOrder);
 
   const [newsOffset, setNewsOffset] = useState(0);
   const newsLimit = 5;
@@ -322,6 +369,14 @@ export function StockAnalysisPanel({
       cancelled = true;
     };
   }, [symbol]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_METRIC_ORDER, JSON.stringify(metricOrder));
+    } catch {
+      // ignore
+    }
+  }, [metricOrder]);
 
   const rangePct = useMemo(() => {
     if (!data?.metrics.week52Low || !data.metrics.week52High || !data.metrics.price) return null;
@@ -455,15 +510,6 @@ export function StockAnalysisPanel({
                 </span>
               ) : null}
             </p>
-          ) : null}
-          {data?.nextEarnings ? (
-            <div className="mt-2 inline-flex items-center rounded-full border border-(--card-border) bg-(--background) px-3 py-1 text-xs">
-              <span className="mr-1 font-semibold text-sky-400">Next Earnings:</span>
-              <span>{formatEarningsDate(data.nextEarnings.at)}</span>
-              {data.nextEarnings.isEstimate ? (
-                <span className="ml-1 text-(--muted)">(est.)</span>
-              ) : null}
-            </div>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -674,57 +720,98 @@ export function StockAnalysisPanel({
             )}
           </div>
 
+          <div className="mb-2 text-xs text-(--muted)">
+            Metrics are reorderable; your order is saved.
+          </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            <MetricCard label="Market Cap" value={formatMarketCap(data?.metrics.marketCap)} />
-            <MetricCard label="Sector" value={data?.sector ?? "—"} />
-            <MetricCard label="Industry" value={data?.industry ?? "—"} />
-            <MetricCard label="Beta" value={formatNumber(data?.metrics.beta, 2)} />
-            <MetricCard label="P/E" value={formatNumber(data?.metrics.trailingPE, 2)} />
-            <MetricCard label="Forward P/E" value={formatNumber(data?.metrics.forwardPE, 2)} />
-            <MetricCard label="PEG Ratio" value={formatNumber(data?.metrics.pegRatio, 2)} />
-            <MetricCard label="Price/Book" value={formatNumber(data?.metrics.priceToBook, 2)} />
-            <MetricCard label="Enterprise Value" value={formatMarketCap(data?.metrics.enterpriseValue)} />
-            <MetricCard
-              label="EV / Revenue"
-              value={formatNumber(data?.metrics.enterpriseToRevenue, 2)}
-            />
-            <MetricCard label="EV / EBITDA" value={formatNumber(data?.metrics.enterpriseToEbitda, 2)} />
-            <MetricCard label="Profit Margin" value={formatPct(data?.metrics.profitMargin)} />
-            <MetricCard label="Return on Equity" value={formatPct(data?.metrics.returnOnEquity)} />
-            <MetricCard label="Dividend Yield" value={formatPct(data?.metrics.dividendYield)} />
-            <MetricCard label="EPS (TTM)" value={formatNumber(data?.context.epsTrailingTwelveMonths, 2)} />
-            <MetricCard label="EPS (Fwd)" value={formatNumber(data?.context.epsForward, 2)} />
-            <MetricCard
-              label="Annual Div / Sh"
-              value={formatUsd(data?.context.trailingAnnualDividendRate)}
-            />
-            <MetricCard
-              label="52W Chg"
-              value={
-                data?.context.fiftyTwoWeekChangePercent == null
-                  ? "—"
-                  : `${formatNumber(data.context.fiftyTwoWeekChangePercent, 2)}%`
-              }
-            />
-            <MetricCard label="50D Avg" value={formatUsd(data?.context.fiftyDayAverage)} />
-            <MetricCard label="200D Avg" value={formatUsd(data?.context.twoHundredDayAverage)} />
-            <MetricCard label="Vol (day)" value={formatNumber(data?.context.regularMarketVolume, 0)} />
-            <MetricCard label="Avg Vol (10D)" value={formatNumber(data?.context.avgVolume10Day, 0)} />
-            <MetricCard label="Avg Vol (3M)" value={formatNumber(data?.context.avgVolume3Month, 0)} />
-            <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2">
-              <p className="text-xs text-(--muted)">52 Week Range</p>
-              <p className="text-sm font-medium">
-                {formatUsd(data?.metrics.week52Low)} - {formatUsd(data?.metrics.week52High)}
-              </p>
-              <div className="mt-2 h-2 rounded-full bg-(--card-border)">
-                <div className="relative h-2 rounded-full bg-sky-500/30" style={{ width: "100%" }}>
-                  <span
-                    className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-white/60 bg-emerald-300"
-                    style={{ left: `calc(${rangePct ?? 0}% - 6px)` }}
+            {metricOrder.map((id, idx) => {
+              const move = (dir: -1 | 1) =>
+                setMetricOrder((prev) => {
+                  const i = prev.indexOf(id);
+                  const j = i + dir;
+                  if (i < 0 || j < 0 || j >= prev.length) return prev;
+                  const next = [...prev];
+                  [next[i], next[j]] = [next[j], next[i]];
+                  return next;
+                });
+              if (id === "next_earnings") {
+                return (
+                  <MetricCard
+                    key={id}
+                    label="Next Earnings"
+                    value={
+                      data?.nextEarnings
+                        ? `${formatEarningsDate(data.nextEarnings.at)}${data.nextEarnings.isEstimate ? " (est.)" : ""}`
+                        : "—"
+                    }
+                    onMoveUp={idx > 0 ? () => move(-1) : undefined}
+                    onMoveDown={idx < metricOrder.length - 1 ? () => move(1) : undefined}
                   />
-                </div>
-              </div>
-            </div>
+                );
+              }
+              if (id === "range_52w") {
+                return (
+                  <MetricCard
+                    key={id}
+                    label="52 Week Range"
+                    value={`${formatUsd(data?.metrics.week52Low)} - ${formatUsd(data?.metrics.week52High)}`}
+                    onMoveUp={idx > 0 ? () => move(-1) : undefined}
+                    onMoveDown={idx < metricOrder.length - 1 ? () => move(1) : undefined}
+                    extra={
+                      <div className="mt-2 h-2 rounded-full bg-(--card-border)">
+                        <div className="relative h-2 rounded-full bg-sky-500/30" style={{ width: "100%" }}>
+                          <span
+                            className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-white/60 bg-emerald-300"
+                            style={{ left: `calc(${rangePct ?? 0}% - 6px)` }}
+                          />
+                        </div>
+                      </div>
+                    }
+                  />
+                );
+              }
+              const valueMap: Record<Exclude<MetricId, "next_earnings" | "range_52w">, { label: string; value: string }> = {
+                market_cap: { label: "Market Cap", value: formatMarketCap(data?.metrics.marketCap) },
+                sector: { label: "Sector", value: data?.sector ?? "—" },
+                industry: { label: "Industry", value: data?.industry ?? "—" },
+                beta: { label: "Beta", value: formatNumber(data?.metrics.beta, 2) },
+                pe: { label: "P/E", value: formatNumber(data?.metrics.trailingPE, 2) },
+                forward_pe: { label: "Forward P/E", value: formatNumber(data?.metrics.forwardPE, 2) },
+                peg: { label: "PEG Ratio", value: formatNumber(data?.metrics.pegRatio, 2) },
+                price_book: { label: "Price/Book", value: formatNumber(data?.metrics.priceToBook, 2) },
+                enterprise_value: { label: "Enterprise Value", value: formatMarketCap(data?.metrics.enterpriseValue) },
+                ev_revenue: { label: "EV / Revenue", value: formatNumber(data?.metrics.enterpriseToRevenue, 2) },
+                ev_ebitda: { label: "EV / EBITDA", value: formatNumber(data?.metrics.enterpriseToEbitda, 2) },
+                profit_margin: { label: "Profit Margin", value: formatPct(data?.metrics.profitMargin) },
+                roe: { label: "Return on Equity", value: formatPct(data?.metrics.returnOnEquity) },
+                div_yield: { label: "Dividend Yield", value: formatPct(data?.metrics.dividendYield) },
+                eps_ttm: { label: "EPS (TTM)", value: formatNumber(data?.context.epsTrailingTwelveMonths, 2) },
+                eps_fwd: { label: "EPS (Fwd)", value: formatNumber(data?.context.epsForward, 2) },
+                annual_div: { label: "Annual Div / Sh", value: formatUsd(data?.context.trailingAnnualDividendRate) },
+                chg_52w: {
+                  label: "52W Chg",
+                  value:
+                    data?.context.fiftyTwoWeekChangePercent == null
+                      ? "—"
+                      : `${formatNumber(data.context.fiftyTwoWeekChangePercent, 2)}%`,
+                },
+                avg_50d: { label: "50D Avg", value: formatUsd(data?.context.fiftyDayAverage) },
+                avg_200d: { label: "200D Avg", value: formatUsd(data?.context.twoHundredDayAverage) },
+                vol_day: { label: "Vol (day)", value: formatNumber(data?.context.regularMarketVolume, 0) },
+                vol_10d: { label: "Avg Vol (10D)", value: formatNumber(data?.context.avgVolume10Day, 0) },
+                vol_3m: { label: "Avg Vol (3M)", value: formatNumber(data?.context.avgVolume3Month, 0) },
+              };
+              const row = valueMap[id as Exclude<MetricId, "next_earnings" | "range_52w">];
+              return (
+                <MetricCard
+                  key={id}
+                  label={row.label}
+                  value={row.value}
+                  onMoveUp={idx > 0 ? () => move(-1) : undefined}
+                  onMoveDown={idx < metricOrder.length - 1 ? () => move(1) : undefined}
+                />
+              );
+            })}
           </div>
 
           <div className="rounded-xl border border-(--card-border) bg-(--background) p-3">
@@ -807,11 +894,46 @@ export function StockAnalysisPanel({
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+  onMoveUp,
+  onMoveDown,
+  extra,
+}: {
+  label: string;
+  value: string;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  extra?: ReactNode;
+}) {
   return (
     <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2">
-      <p className="text-xs text-(--muted)">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-(--muted)">{label}</p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={!onMoveUp}
+            className="rounded border border-(--card-border) px-1 text-[10px] disabled:opacity-40"
+            aria-label={`Move ${label} up`}
+          >
+            ^
+          </button>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={!onMoveDown}
+            className="rounded border border-(--card-border) px-1 text-[10px] disabled:opacity-40"
+            aria-label={`Move ${label} down`}
+          >
+            v
+          </button>
+        </div>
+      </div>
       <p className="text-sm font-medium">{value}</p>
+      {extra}
     </div>
   );
 }
