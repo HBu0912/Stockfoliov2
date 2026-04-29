@@ -164,16 +164,19 @@ function PriceTooltip({
   interval,
 }: {
   active?: boolean;
-  payload?: Array<{ payload?: { at?: string; close?: number } }>;
+  payload?: Array<{ payload?: { at?: string; close?: number; pct?: number } }>;
   interval: IntervalKey;
 }) {
   if (!active || !payload?.length) return null;
-  const row = payload[0]?.payload as { at?: string; close?: number } | undefined;
+  const row = payload[0]?.payload as { at?: string; close?: number; pct?: number } | undefined;
   if (!row?.at || row.close == null) return null;
   return (
     <div className="rounded-xl border border-(--card-border) bg-(--card) px-3 py-2 text-xs shadow-lg">
       <p className="text-(--muted)">{formatTooltipDate(row.at, interval)}</p>
       <p className="mt-1 text-sm font-semibold">{formatUsd(row.close)}</p>
+      <p className="text-(--muted)">
+        {row.pct == null ? "—" : `${row.pct > 0 ? "+" : ""}${formatNumber(row.pct, 2)}%`}
+      </p>
     </div>
   );
 }
@@ -310,13 +313,16 @@ export function StockAnalysisPanel({
   }, [data]);
 
   const chartRows = useMemo(
-    () =>
-      (data?.chart ?? []).map((row, idx) => ({
+    () => {
+      const base = data?.chart?.[0]?.close;
+      return (data?.chart ?? []).map((row, idx) => ({
         ...row,
+        pct: base && base !== 0 ? ((row.close - base) / base) * 100 : 0,
         idx,
         label: formatXAxis(row.at, interval),
         tooltipLabel: formatTooltipDate(row.at, interval),
-      })),
+      }));
+    },
     [data, interval]
   );
 
@@ -517,6 +523,7 @@ export function StockAnalysisPanel({
                       const span = max - min || Math.abs(max || 1);
                       return [min - span * 0.06, max + span * 0.2];
                     }}
+                    tickFormatter={(v) => `${formatNumber(typeof v === "number" ? v : Number(v), 2)}%`}
                     tick={{ fontSize: 11, pointerEvents: "none" }}
                     width={56}
                   />
@@ -557,8 +564,8 @@ export function StockAnalysisPanel({
                   )}
                   <Line
                     type="monotone"
-                    dataKey="close"
-                    name="Price"
+                    dataKey="pct"
+                    name="% Change"
                     stroke={isNegative ? "#f87171" : "#34d399"}
                     strokeWidth={2}
                     dot={false}

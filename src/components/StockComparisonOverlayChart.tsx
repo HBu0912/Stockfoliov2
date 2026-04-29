@@ -91,6 +91,13 @@ function readActiveIdx(state: unknown): number | null {
   return null;
 }
 
+function rangePctFromNormalized(startPct: number, endPct: number): number {
+  const s = 1 + startPct / 100;
+  const e = 1 + endPct / 100;
+  if (!Number.isFinite(s) || !Number.isFinite(e) || s <= 0) return 0;
+  return ((e - s) / s) * 100;
+}
+
 export function StockComparisonOverlayChart({
   symbols,
   interval,
@@ -159,18 +166,21 @@ export function StockComparisonOverlayChart({
     const left = Math.max(0, Math.min(dragStartIdx, dragEndIdx));
     const right = Math.min(merged.length - 1, Math.max(dragStartIdx, dragEndIdx));
     if (left === right) return null;
-    const primary = series[0]?.symbol;
-    if (!primary) return null;
-    const start = Number((merged[left] as MergedRow)[primary]);
-    const end = Number((merged[right] as MergedRow)[primary]);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start === 0) return null;
+    const perSymbol = series
+      .map((s) => {
+        const start = Number((merged[left] as MergedRow)[s.symbol]);
+        const end = Number((merged[right] as MergedRow)[s.symbol]);
+        if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+        return { symbol: s.symbol, pct: rangePctFromNormalized(start, end) };
+      })
+      .filter((x): x is { symbol: string; pct: number } => x !== null);
+    if (perSymbol.length === 0) return null;
     return {
       left,
       right,
-      pct: ((end - start) / start) * 100,
       startLabel: String((merged[left] as MergedRow).label ?? ""),
       endLabel: String((merged[right] as MergedRow).label ?? ""),
-      symbol: primary,
+      perSymbol,
     };
   }, [dragMoved, dragStartIdx, dragEndIdx, merged, series]);
 
@@ -209,24 +219,31 @@ export function StockComparisonOverlayChart({
     };
   }, [interval, marketOpenIdx, marketCloseIdx, merged]);
 
-  const primarySymbol = series[0]?.symbol ?? null;
-  const primaryWindowPct = useMemo(() => {
-    if (!primarySymbol || merged.length < 2) return null;
-    let first: number | null = null;
-    let last: number | null = null;
-    for (const row of merged) {
-      const v = Number((row as MergedRow)[primarySymbol]);
-      if (!Number.isFinite(v)) continue;
-      if (first == null) first = v;
-      last = v;
+  const bubbleRows = useMemo(() => {
+    if (selectedRange) {
+      return selectedRange.perSymbol.map((x) => ({
+        symbol: x.symbol,
+        pct: x.pct,
+        label: `${x.symbol} ${x.pct > 0 ? "+" : ""}${formatNumber(x.pct, 2)}%`,
+      }));
     }
-    if (first == null || last == null) return null;
-    return last - first;
-  }, [primarySymbol, merged]);
-  const chartBubblePct = selectedRange?.pct ?? primaryWindowPct;
+    return series.map((s) => {
+      let last: number | null = null;
+      for (const row of merged) {
+        const v = Number((row as MergedRow)[s.symbol]);
+        if (Number.isFinite(v)) last = v;
+      }
+      const pct = last ?? 0;
+      return {
+        symbol: s.symbol,
+        pct,
+        label: `${s.symbol} ${pct > 0 ? "+" : ""}${formatNumber(pct, 2)}%`,
+      };
+    });
+  }, [selectedRange, series, merged]);
   const chartBubbleLabel = selectedRange
-    ? `${selectedRange.symbol}: ${selectedRange.startLabel} → ${selectedRange.endLabel}`
-    : `${interval}${primarySymbol ? ` · ${primarySymbol}` : ""}`;
+    ? `${selectedRange.startLabel} → ${selectedRange.endLabel}`
+    : `${interval}`;
 
   return (
     <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
@@ -366,13 +383,16 @@ export function StockComparisonOverlayChart({
             </LineChart>
           </ResponsiveContainer>
         )}
-        {chartBubblePct != null && (
-          <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-(--card-border) bg-(--card)/95 px-3 py-1 text-xs shadow-sm">
-            <span className={chartBubblePct < 0 ? "text-red-400" : "text-emerald-300"}>
-              <span className="mr-1 text-(--muted)">{chartBubbleLabel}</span>
-              {chartBubblePct > 0 ? "+" : ""}
-              {formatNumber(chartBubblePct, 2)}%
-            </span>
+        {bubbleRows.length > 0 && (
+          <div className="pointer-events-none absolute right-3 top-3 rounded-xl border border-(--card-border) bg-(--card)/95 px-3 py-1.5 text-xs shadow-sm">
+            <p className="text-[10px] text-(--muted)">{chartBubbleLabel}</p>
+            <div className="space-y-0.5">
+              {bubbleRows.map((row) => (
+                <p key={row.symbol} className={row.pct < 0 ? "text-red-400" : "text-emerald-300"}>
+                  {row.label}
+                </p>
+              ))}
+            </div>
           </div>
         )}
       </div>
