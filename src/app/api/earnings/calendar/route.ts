@@ -162,26 +162,23 @@ export async function GET(req: Request) {
   let attempted = 0;
   let withAnyDate = 0;
   let inRequestedWeek = 0;
-  await runWithConcurrency(symbols, 6, async (symbol) => {
+  await runWithConcurrency(symbols, 2, async (symbol) => {
       try {
         attempted += 1;
-        const q = (await yahooFinance.quote(symbol)) as Record<string, unknown>;
         const qs = (await yahooFinance.quoteSummary(symbol, {
           modules: ["calendarEvents", "summaryProfile", "price"],
         })) as Record<string, unknown>;
         const profile = qs.summaryProfile as Record<string, unknown> | undefined;
         const price = qs.price as Record<string, unknown> | undefined;
         const website: string | null = typeof profile?.website === "string" ? profile.website : null;
-        const shortName = String(
-          price?.shortName ?? price?.longName ?? q.shortName ?? q.longName ?? symbol
-        );
+        const shortName = String(price?.shortName ?? price?.longName ?? symbol);
 
         const calDates = extractCalendarDateCandidates(qs);
         const earningsDateCandidates = [
           ...calDates,
-          toIsoFromUnknown(q.earningsTimestamp),
-          toIsoFromUnknown(q.earningsTimestampStart),
-          toIsoFromUnknown(q.earningsTimestampEnd),
+          toIsoFromUnknown(price?.earningsTimestamp),
+          toIsoFromUnknown(price?.earningsTimestampStart),
+          toIsoFromUnknown(price?.earningsTimestampEnd),
         ].filter((x): x is string => Boolean(x));
         if (earningsDateCandidates.length > 0) withAnyDate += 1;
 
@@ -196,8 +193,8 @@ export async function GET(req: Request) {
         if (!earningsDate) return;
         if (withinWeek(earningsDate, weekStart, weekEnd)) inRequestedWeek += 1;
 
-        const epsEstimate = toNum(q.epsForward);
-        const epsActual = toNum(q.epsCurrentYear);
+        const epsEstimate = toNum(price?.epsForward);
+        const epsActual = toNum(price?.epsCurrentYear);
         const epsBeat = epsActual != null && epsEstimate != null ? epsActual >= epsEstimate : null;
         const revenueEstimate = null;
         const revenueActual = null;
@@ -229,52 +226,50 @@ export async function GET(req: Request) {
       }
     });
 
-  // Secondary fallback: Yahoo screeners often include earnings timestamps even when quote paths do not.
-  if (outBySymbol.size === 0) {
-    const scrIds = ["day_gainers", "day_losers", "most_actives", "growth_technology_stocks"] as const;
-    await runWithConcurrency([...scrIds], 2, async (scrId) => {
-      try {
-        const result = (await yahooFinance.screener({ scrIds: scrId, count: 250 })) as Record<string, unknown>;
-        const quotes = Array.isArray(result.quotes) ? (result.quotes as ScreenerQuoteLike[]) : [];
-        for (const q of quotes) {
-          const symbol = String(q.symbol ?? "").toUpperCase().trim();
-          if (!symbol || outBySymbol.has(symbol)) continue;
-          const earningsDateCandidates = [
-            toIsoFromUnknown(q.earningsTimestamp),
-            toIsoFromUnknown(q.earningsTimestampStart),
-            toIsoFromUnknown(q.earningsTimestampEnd),
-            toIsoFromUnknown(q.earningsCallTimestampStart),
-            toIsoFromUnknown(q.earningsCallTimestampEnd),
-          ].filter((x): x is string => Boolean(x));
-          const earningsDate =
-            earningsDateCandidates.find((iso) => withinWeek(iso, weekStart, weekEnd)) ??
-            earningsDateCandidates[0] ??
-            null;
-          if (!earningsDate) continue;
-          const minutesEt = parseEtMinutesFromIso(earningsDate);
-          const session = sessionFromMinutes(minutesEt, "time-unknown");
-          outBySymbol.set(symbol, {
-            symbol,
-            shortName: String(q.shortName ?? q.longName ?? symbol),
-            earningsDate,
-            session,
-            website: null,
-            earningsLink: `https://finance.yahoo.com/quote/${symbol}/earnings`,
-            epsEstimate: toNum(q.epsForward),
-            epsActual: toNum(q.epsCurrentYear),
-            epsBeat: null,
-            revenueEstimate: null,
-            revenueActual: null,
-            revenueBeat: null,
-            reportTimeEt: toEtTimeLabel(minutesEt),
-            logoUrl: null,
-          });
-        }
-      } catch {
-        // ignore screener failures
+  // Secondary fallback: Yahoo screeners often include earnings timestamps even when summary paths do not.
+  const scrIds = ["day_gainers", "day_losers", "most_actives", "growth_technology_stocks"] as const;
+  await runWithConcurrency([...scrIds], 2, async (scrId) => {
+    try {
+      const result = (await yahooFinance.screener({ scrIds: scrId, count: 250 })) as Record<string, unknown>;
+      const quotes = Array.isArray(result.quotes) ? (result.quotes as ScreenerQuoteLike[]) : [];
+      for (const q of quotes) {
+        const symbol = String(q.symbol ?? "").toUpperCase().trim();
+        if (!symbol || outBySymbol.has(symbol)) continue;
+        const earningsDateCandidates = [
+          toIsoFromUnknown(q.earningsTimestamp),
+          toIsoFromUnknown(q.earningsTimestampStart),
+          toIsoFromUnknown(q.earningsTimestampEnd),
+          toIsoFromUnknown(q.earningsCallTimestampStart),
+          toIsoFromUnknown(q.earningsCallTimestampEnd),
+        ].filter((x): x is string => Boolean(x));
+        const earningsDate =
+          earningsDateCandidates.find((iso) => withinWeek(iso, weekStart, weekEnd)) ??
+          earningsDateCandidates[0] ??
+          null;
+        if (!earningsDate) continue;
+        const minutesEt = parseEtMinutesFromIso(earningsDate);
+        const session = sessionFromMinutes(minutesEt, "time-unknown");
+        outBySymbol.set(symbol, {
+          symbol,
+          shortName: String(q.shortName ?? q.longName ?? symbol),
+          earningsDate,
+          session,
+          website: null,
+          earningsLink: `https://finance.yahoo.com/quote/${symbol}/earnings`,
+          epsEstimate: toNum(q.epsForward),
+          epsActual: toNum(q.epsCurrentYear),
+          epsBeat: null,
+          revenueEstimate: null,
+          revenueActual: null,
+          revenueBeat: null,
+          reportTimeEt: toEtTimeLabel(minutesEt),
+          logoUrl: null,
+        });
       }
-    });
-  }
+    } catch {
+      // ignore screener failures
+    }
+  });
 
   out.push(...outBySymbol.values());
 
