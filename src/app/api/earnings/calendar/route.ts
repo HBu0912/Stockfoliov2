@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import yahooFinance from "yahoo-finance2";
+import yahooFinance, { type Quote } from "yahoo-finance2";
 import { NextResponse } from "next/server";
 
 type SessionType = "premarket" | "aftermarket" | "time-unknown";
@@ -20,8 +20,6 @@ type EarningsItem = {
   reportTimeEt: string | null;
 };
 
-type LooseObject = Record<string, unknown>;
-
 async function runWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
   const queue = [...items];
   const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
@@ -38,12 +36,6 @@ function toNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function sessionFromCallTime(v: unknown): SessionType {
-  const s = String(v ?? "").toLowerCase();
-  if (s.includes("bmo") || s.includes("pre")) return "premarket";
-  if (s.includes("amc") || s.includes("post")) return "aftermarket";
-  return "time-unknown";
-}
 
 function sessionFromMinutes(minutes: number | null, fallback: SessionType): SessionType {
   if (minutes == null) return fallback;
@@ -77,19 +69,11 @@ function toEtTimeLabel(minutes: number | null): string | null {
   return `${hour12}:${String(minute).padStart(2, "0")} ${suffix} ET`;
 }
 
-function toIsoOrNull(v: unknown): string | null {
-  if (!v) return null;
-  const d = new Date(v as string | number | Date);
+function isoFromUnixSeconds(v: unknown): string | null {
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  const d = new Date(v * 1000);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
-}
-
-function asObject(v: unknown): LooseObject {
-  return v && typeof v === "object" ? (v as LooseObject) : {};
-}
-
-function pick(v: unknown, key: string): unknown {
-  return asObject(v)[key];
 }
 
 export async function GET(req: Request) {
@@ -115,15 +99,12 @@ export async function GET(req: Request) {
   const out: EarningsItem[] = [];
   await runWithConcurrency(symbols, 6, async (symbol) => {
       try {
-        const qs = await yahooFinance.quoteSummary(symbol, {
-          modules: ["calendarEvents", "summaryProfile", "price", "earningsHistory", "earningsTrend"],
-        });
-
-        const cal = asObject(pick(pick(qs, "calendarEvents"), "earnings"));
-        const earningsDateRaw = pick(cal, "earningsDate");
-        const earningsDateCandidates = Array.isArray(earningsDateRaw)
-          ? earningsDateRaw.map(toIsoOrNull).filter((x): x is string => Boolean(x))
-          : [toIsoOrNull(earningsDateRaw)].filter((x): x is string => Boolean(x));
+        const q = (await yahooFinance.quote(symbol)) as Quote;
+        const earningsDateCandidates = [
+          isoFromUnixSeconds((q as unknown as Record<string, unknown>).earningsTimestamp),
+          isoFromUnixSeconds((q as unknown as Record<string, unknown>).earningsTimestampStart),
+          isoFromUnixSeconds((q as unknown as Record<string, unknown>).earningsTimestampEnd),
+        ].filter((x): x is string => Boolean(x));
 
         let earningsDate = earningsDateCandidates[0] ?? null;
         if (weekStart && weekEnd && earningsDateCandidates.length > 0) {
@@ -137,29 +118,25 @@ export async function GET(req: Request) {
           const at = new Date(earningsDate).getTime();
           if (at < weekStart.getTime() || at > weekEnd.getTime()) return;
         }
+        if (!earningsDate) return;
 
-        const history = pick(pick(qs, "earningsHistory"), "history");
-        const hist = Array.isArray(history) ? asObject(history[0]) : {};
-        const epsEstimate = toNum(pick(hist, "epsEstimate") ?? pick(cal, "epsEstimate"));
-        const epsActual = toNum(pick(hist, "epsActual"));
+        const epsEstimate = toNum((q as unknown as Record<string, unknown>).epsForward);
+        const epsActual = toNum((q as unknown as Record<string, unknown>).epsCurrentYear);
         const epsBeat = epsActual != null && epsEstimate != null ? epsActual >= epsEstimate : null;
-
-        const trendRows = pick(pick(qs, "earningsTrend"), "trend");
-        const trend = Array.isArray(trendRows) ? asObject(trendRows[0]) : {};
-        const revenueEstimate = toNum(pick(asObject(pick(trend, "revenueEstimate")), "avg"));
+        const revenueEstimate = null;
         const revenueActual = null;
         const revenueBeat = revenueActual != null && revenueEstimate != null ? revenueActual >= revenueEstimate : null;
 
-        const fallbackSession = sessionFromCallTime(pick(cal, "earningsCallTime"));
+        const fallbackSession = "time-unknown" as SessionType;
         const minutesEt = parseEtMinutesFromIso(earningsDate);
         const session = sessionFromMinutes(minutesEt, fallbackSession);
 
         out.push({
           symbol,
-          shortName: String(pick(pick(qs, "price"), "shortName") ?? symbol),
+          shortName: String((q as unknown as Record<string, unknown>).shortName ?? (q as unknown as Record<string, unknown>).longName ?? symbol),
           earningsDate,
           session,
-          website: pick(pick(qs, "summaryProfile"), "website") as string | null,
+          website: null,
           earningsLink: `https://finance.yahoo.com/quote/${symbol}/earnings`,
           epsEstimate,
           epsActual,
