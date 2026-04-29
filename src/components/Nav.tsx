@@ -5,13 +5,30 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { BrandMark } from "./BrandMark";
 
-const links = [
-  { href: "/overview", label: "Overview" },
-  { href: "/stock-comparison", label: "Stock Comparison" },
-  { href: "/stock-analysis", label: "Stock Analysis" },
-  { href: "/arena", label: "Arenas" },
-  { href: "/profile", label: "Profile" },
-];
+const navGroups = [
+  {
+    label: "Portfolio",
+    links: [
+      { href: "/overview", label: "Overview" },
+      { href: "/profile", label: "Profile" },
+    ],
+  },
+  {
+    label: "Research",
+    links: [
+      { href: "/stock-analysis", label: "Stock Analysis" },
+      { href: "/stock-comparison", label: "Stock Comparison" },
+      { href: "/arena", label: "Arenas" },
+    ],
+  },
+  {
+    label: "Tools",
+    links: [
+      { href: "/investor-compare", label: "Investor Compare" },
+      { href: "/earnings-calendar", label: "Earnings Calendar" },
+    ],
+  },
+] as const;
 
 export function Nav() {
   const pathname = usePathname();
@@ -54,7 +71,7 @@ export function Nav() {
         <Link href="/overview">
           <BrandMark />
         </Link>
-        <nav className="flex flex-wrap items-center gap-1 text-sm">
+        <nav className="flex flex-wrap items-center gap-2 text-sm">
           {refreshText && (
             <span className="mr-1 text-xs text-(--muted)">Prices Updated: {refreshText}</span>
           )}
@@ -66,23 +83,30 @@ export function Nav() {
           >
             {refreshingPrices ? "Refreshing..." : "Refresh"}
           </button>
-          {links.map((l) => {
-            const on = pathname === l.href || pathname.startsWith(l.href + "/");
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={
-                  "rounded-md px-3 py-1.5 transition-colors " +
-                  (on
-                    ? "bg-(--card) font-medium text-foreground shadow-sm"
-                    : "text-(--muted) hover:bg-(--card) hover:text-foreground")
-                }
-              >
-                {l.label}
-              </Link>
-            );
-          })}
+          {navGroups.map((group) => (
+            <div key={group.label} className="flex items-center gap-1 rounded-lg border border-(--card-border) px-1 py-1">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-wide text-(--muted)">
+                {group.label}
+              </span>
+              {group.links.map((l) => {
+                const on = pathname === l.href || pathname.startsWith(l.href + "/");
+                return (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    className={
+                      "rounded-md px-3 py-1.5 transition-colors " +
+                      (on
+                        ? "bg-(--card) font-medium text-foreground shadow-sm"
+                        : "text-(--muted) hover:bg-(--card) hover:text-foreground")
+                    }
+                  >
+                    {l.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
           <button
             type="button"
             onClick={() => void logout()}
