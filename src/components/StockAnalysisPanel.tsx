@@ -148,8 +148,14 @@ function newYorkDateKey(dateISO: string): string {
 function readActiveIdx(state: unknown): number | null {
   if (typeof state !== "object" || state == null) return null;
   const idx = (state as { activeTooltipIndex?: unknown }).activeTooltipIndex;
-  if (typeof idx !== "number" || !Number.isFinite(idx)) return null;
-  return idx;
+  if (typeof idx === "number" && Number.isFinite(idx)) return idx;
+  const activeLabel = (state as { activeLabel?: unknown }).activeLabel;
+  if (typeof activeLabel === "number" && Number.isFinite(activeLabel)) return activeLabel;
+  if (typeof activeLabel === "string") {
+    const parsed = Number(activeLabel);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function PriceTooltip({
@@ -219,6 +225,7 @@ export function StockAnalysisPanel({
   const [dragStartIdx, setDragStartIdx] = useState<number | null>(null);
   const [dragEndIdx, setDragEndIdx] = useState<number | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [dragMoved, setDragMoved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -320,6 +327,7 @@ export function StockAnalysisPanel({
     if (dragStartIdx == null || dragEndIdx == null || chartRows.length === 0) return null;
     const left = Math.max(0, Math.min(dragStartIdx, dragEndIdx));
     const right = Math.min(chartRows.length - 1, Math.max(dragStartIdx, dragEndIdx));
+    if (!dragMoved) return null;
     if (left === right) return null;
     const start = chartRows[left]?.close;
     const end = chartRows[right]?.close;
@@ -331,7 +339,7 @@ export function StockAnalysisPanel({
       startLabel: chartRows[left]?.tooltipLabel,
       endLabel: chartRows[right]?.tooltipLabel,
     };
-  }, [chartRows, dragStartIdx, dragEndIdx]);
+  }, [chartRows, dragStartIdx, dragEndIdx, dragMoved]);
 
   const latestNyDateKey = useMemo(() => {
     if (interval !== "1D" || chartRows.length === 0) return null;
@@ -355,6 +363,8 @@ export function StockAnalysisPanel({
       })?.idx ?? null
     );
   }, [interval, chartRows, latestNyDateKey]);
+
+  const chartBubblePct = selectedRange?.pct ?? headerChange;
 
   return (
     <div className="space-y-3">
@@ -402,6 +412,7 @@ export function StockAnalysisPanel({
               setNewsOffset(0);
               setDragStartIdx(null);
               setDragEndIdx(null);
+              setDragMoved(false);
               setReloadToken((t) => t + 1);
             }}
             className="rounded-md border border-(--card-border) px-3 py-1.5 text-xs hover:bg-(--background)"
@@ -431,6 +442,7 @@ export function StockAnalysisPanel({
                   setNewsOffset(0);
                   setDragStartIdx(null);
                   setDragEndIdx(null);
+                  setDragMoved(false);
                 }}
                 className={
                   "rounded-md px-2 py-1 text-xs " +
@@ -444,7 +456,7 @@ export function StockAnalysisPanel({
             ))}
           </div>
 
-          <div className="h-80 select-none rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96">
+          <div className="relative h-80 select-none rounded-xl border border-(--card-border) bg-(--background) p-2 lg:h-96">
             {loading ? (
               <p className="px-2 py-3 text-sm text-(--muted)">Loading chart...</p>
             ) : error ? (
@@ -456,17 +468,21 @@ export function StockAnalysisPanel({
                 <LineChart
                   data={chartRows}
                   onMouseDown={(state) => {
-                    const idx = readActiveIdx(state);
+                    const idx = readActiveIdx(state) ?? hoverIdx;
                     if (idx == null) return;
                     setDragging(true);
                     setDragStartIdx(idx);
                     setDragEndIdx(idx);
+                    setDragMoved(false);
                     setHoverIdx(null);
                   }}
                   onMouseMove={(state) => {
                     const idx = readActiveIdx(state);
                     if (dragging) {
-                      if (idx != null) setDragEndIdx(idx);
+                      if (idx != null) {
+                        setDragEndIdx(idx);
+                        if (dragStartIdx != null && idx !== dragStartIdx) setDragMoved(true);
+                      }
                       return;
                     }
                     setHoverIdx(idx);
@@ -474,7 +490,10 @@ export function StockAnalysisPanel({
                   onMouseUp={(state) => {
                     if (!dragging) return;
                     const idx = readActiveIdx(state);
-                    if (idx != null) setDragEndIdx(idx);
+                    if (idx != null) {
+                      setDragEndIdx(idx);
+                      if (dragStartIdx != null && idx !== dragStartIdx) setDragMoved(true);
+                    }
                     setDragging(false);
                   }}
                   onMouseLeave={() => {
@@ -486,7 +505,7 @@ export function StockAnalysisPanel({
                     dataKey="idx"
                     minTickGap={28}
                     tick={false}
-                    axisLine={false}
+                    axisLine={{ stroke: "rgba(148,163,184,0.6)" }}
                     tickLine={false}
                     tickFormatter={(value) => chartRows[Number(value)]?.label ?? ""}
                   />
@@ -499,6 +518,12 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
+                      label={{
+                        value: "9:30",
+                        position: "insideBottom",
+                        fill: "rgba(148,163,184,0.95)",
+                        fontSize: 10,
+                      }}
                     />
                   )}
                   {interval === "1D" && marketCloseIdx != null && (
@@ -508,6 +533,12 @@ export function StockAnalysisPanel({
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       ifOverflow="extendDomain"
+                      label={{
+                        value: "4:00",
+                        position: "insideBottom",
+                        fill: "rgba(148,163,184,0.95)",
+                        fontSize: 10,
+                      }}
                     />
                   )}
                   {!dragging && hoverIdx != null && (
@@ -537,17 +568,15 @@ export function StockAnalysisPanel({
                 </LineChart>
               </ResponsiveContainer>
             )}
+            {chartBubblePct != null && (
+              <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-(--card-border) bg-(--card)/95 px-3 py-1 text-xs shadow-sm">
+                <span className={chartBubblePct < 0 ? "text-red-400" : "text-emerald-300"}>
+                  {chartBubblePct > 0 ? "+" : ""}
+                  {formatNumber(chartBubblePct, 2)}%
+                </span>
+              </div>
+            )}
           </div>
-
-          {selectedRange && (
-            <div className="rounded-lg border border-(--card-border) bg-(--background) px-3 py-2 text-xs">
-              Selected window ({selectedRange.startLabel} → {selectedRange.endLabel}):{" "}
-              <span className={selectedRange.pct < 0 ? "text-red-400" : "text-emerald-300"}>
-                {selectedRange.pct > 0 ? "+" : ""}
-                {formatNumber(selectedRange.pct, 2)}%
-              </span>
-            </div>
-          )}
 
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             <MetricCard label="Market Cap" value={formatMarketCap(data?.metrics.marketCap)} />

@@ -205,6 +205,12 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
+                  label={{
+                    value: "9:30",
+                    position: "insideBottom",
+                    fill: "rgba(148,163,184,0.95)",
+                    fontSize: 10,
+                  }}
                 />
               )}
               {interval === "1D" && marketCloseIdx != null && (
@@ -214,6 +220,12 @@ export function StockComparisonOverlayChart({
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   ifOverflow="extendDomain"
+                  label={{
+                    value: "4:00",
+                    position: "insideBottom",
+                    fill: "rgba(148,163,184,0.95)",
+                    fontSize: 10,
+                  }}
                 />
               )}
               <Legend />
