@@ -25,6 +25,7 @@ const navGroups = [
     label: "Tools",
     links: [
       { href: "/investor-compare", label: "Investor Compare" },
+      { href: "/market-heat-map", label: "Market Heat Map" },
       { href: "/earnings-calendar", label: "Earnings Calendar" },
     ],
   },
