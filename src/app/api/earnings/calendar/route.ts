@@ -79,14 +79,29 @@ function isoFromUnixSeconds(v: unknown): string | null {
 
 function toIsoFromUnknown(v: unknown): string | null {
   if (!v) return null;
-  if (typeof v === "number") return isoFromUnixSeconds(v);
+  if (v instanceof Date) {
+    return Number.isNaN(v.getTime()) ? null : v.toISOString();
+  }
+  if (typeof v === "number") {
+    const msCandidate = new Date(v);
+    if (!Number.isNaN(msCandidate.getTime()) && v > 10_000_000_000) {
+      return msCandidate.toISOString();
+    }
+    return isoFromUnixSeconds(v);
+  }
   if (typeof v === "string") {
     const d = new Date(v);
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
   }
   if (typeof v === "object" && v !== null) {
-    const raw = (v as Record<string, unknown>).raw;
-    if (typeof raw === "number") return isoFromUnixSeconds(raw);
+    const obj = v as Record<string, unknown>;
+    if (typeof obj.fmt === "string") {
+      const d = new Date(obj.fmt);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const raw = obj.raw;
+    const fromRaw = toIsoFromUnknown(raw);
+    if (fromRaw) return fromRaw;
   }
   return null;
 }
@@ -144,9 +159,9 @@ export async function GET(req: Request) {
         let website: string | null = null;
         let shortName = String(q.shortName ?? q.longName ?? symbol);
         const earningsDateCandidates = [
-          isoFromUnixSeconds(q.earningsTimestamp),
-          isoFromUnixSeconds(q.earningsTimestampStart),
-          isoFromUnixSeconds(q.earningsTimestampEnd),
+          toIsoFromUnknown(q.earningsTimestamp),
+          toIsoFromUnknown(q.earningsTimestampStart),
+          toIsoFromUnknown(q.earningsTimestampEnd),
         ].filter((x): x is string => Boolean(x));
 
         if (earningsDateCandidates.length === 0) {
