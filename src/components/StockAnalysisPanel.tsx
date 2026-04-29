@@ -35,6 +35,10 @@ type Payload = {
   exchange: string | null;
   currency: string | null;
   marketState: string | null;
+  nextEarnings: {
+    at: string;
+    isEstimate: boolean | null;
+  } | null;
   overview: string | null;
   analyst: {
     strongBuy: number;
@@ -123,6 +127,16 @@ function formatTooltipDate(dateISO: string, interval: IntervalKey): string {
 
 function formatAxisNumber(v: number): string {
   return v.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+}
+
+function formatEarningsDate(dateISO: string): string {
+  return new Date(dateISO).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function minutesInNewYork(dateISO: string): number {
@@ -441,6 +455,15 @@ export function StockAnalysisPanel({
                 </span>
               ) : null}
             </p>
+          ) : null}
+          {data?.nextEarnings ? (
+            <div className="mt-2 inline-flex items-center rounded-full border border-(--card-border) bg-(--background) px-3 py-1 text-xs">
+              <span className="mr-1 font-semibold text-sky-400">Next Earnings:</span>
+              <span>{formatEarningsDate(data.nextEarnings.at)}</span>
+              {data.nextEarnings.isEstimate ? (
+                <span className="ml-1 text-(--muted)">(est.)</span>
+              ) : null}
+            </div>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -65,6 +65,26 @@ function keepLastTradingWeekPoints(points: Array<{ at: string; close: number }>)
   return points.filter((p) => keepDays.has(newYorkDateKey(p.at)));
 }
 
+function toIsoFromUnknown(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
+  if (typeof v === "number") {
+    const msDate = new Date(v);
+    if (!Number.isNaN(msDate.getTime()) && v > 10_000_000_000) return msDate.toISOString();
+    const secDate = new Date(v * 1000);
+    return Number.isNaN(secDate.getTime()) ? null : secDate.toISOString();
+  }
+  if (typeof v === "string") {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  if (typeof v === "object") {
+    const raw = (v as Record<string, unknown>).raw;
+    return toIsoFromUnknown(raw);
+  }
+  return null;
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ symbol: string }> }) {
   const { symbol: rawSymbol } = await ctx.params;
   const symbol = rawSymbol.trim().toUpperCase();
@@ -94,6 +114,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
           "defaultKeyStatistics",
           "financialData",
           "summaryProfile",
+          "calendarEvents",
           "recommendationTrend",
         ],
       }),
@@ -172,6 +193,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       first != null && last != null && first !== 0 ? ((last - first) / first) * 100 : null;
 
     const fundamentals = mergeFundamentals(quote, summary);
+    const calEarningsRaw = summary.calendarEvents?.earnings?.earningsDate;
+    const calDates = Array.isArray(calEarningsRaw)
+      ? calEarningsRaw.map((d) => toIsoFromUnknown(d)).filter((d): d is string => Boolean(d))
+      : [toIsoFromUnknown(calEarningsRaw)].filter((d): d is string => Boolean(d));
+    const nextEarningsAt =
+      calDates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ??
+      toIsoFromUnknown(quote.earningsTimestampStart) ??
+      toIsoFromUnknown(quote.earningsTimestamp) ??
+      toIsoFromUnknown(quote.earningsTimestampEnd) ??
+      null;
 
     const pagedNews = newsItems.slice(0, desiredEnd);
     const hasMoreNews = newsItems.length > desiredEnd;
@@ -187,6 +218,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       exchange: quote.fullExchangeName ?? quote.exchange ?? null,
       currency: quote.currency ?? null,
       marketState: quote.marketState ?? null,
+      nextEarnings: nextEarningsAt
+        ? {
+            at: nextEarningsAt,
+            isEstimate: quote.isEarningsDateEstimate ?? null,
+          }
+        : null,
       overview: summary.summaryProfile?.longBusinessSummary ?? null,
       analyst: summary.recommendationTrend?.trend?.[0]
         ? {
