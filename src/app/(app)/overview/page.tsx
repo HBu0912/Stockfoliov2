@@ -70,7 +70,13 @@ export default function OverviewPage() {
   const [addShares, setAddShares] = useState("1");
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [refreshText, setRefreshText] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem("pf-last-refreshed");
+      return stored ? new Date(stored) : null;
+    } catch { return null; }
+  });
   const [hideValues, setHideValues] = useState(false);
   const [analysis, setAnalysis] = useState<PortfolioAnalysis | null>(null);
   const [portfolioTrendOpen, setPortfolioTrendOpen] = useState(false);
@@ -283,7 +289,7 @@ export default function OverviewPage() {
   useEffect(() => {
     let cancelled = false;
     async function loadAnalysis() {
-      if (!viewHoldings.length) {
+      if (!portfolioTrendOpen || !viewHoldings.length) {
         setAnalysis(null);
         return;
       }
@@ -392,7 +398,7 @@ export default function OverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [viewHoldings]);
+  }, [portfolioTrendOpen, viewHoldings]);
 
   useEffect(() => {
     let cancelled = false;
@@ -439,36 +445,46 @@ export default function OverviewPage() {
       setHoldingMoversLoading(true);
       try {
         const total = Math.max(1, viewValue);
+        // Sort by value descending, take top 40
         const top = [...viewHoldings]
           .sort((a, b) => b.shares * (b.lastPrice ?? 0) - a.shares * (a.lastPrice ?? 0))
-          .slice(0, 30);
-        const rows = await Promise.all(
-          top.map(async (h) => {
-            const weight = (h.shares * (h.lastPrice ?? 0)) / total * 100;
-            try {
-              const res = await fetch(`/api/stocks/${encodeURIComponent(h.symbol)}?interval=1D`);
-              if (!res.ok) return null;
-              const d = (await res.json()) as { changePct?: number | null; metrics?: { price?: number | null }; name?: string | null };
-              const changePct = d.changePct ?? null;
-              if (changePct === null || !Number.isFinite(changePct)) return null;
-              if (weight < 5 && Math.abs(changePct) < 1.5) return null;
-              const price = h.lastPrice ?? d.metrics?.price ?? 0;
-              const mover: HoldingMover = {
-                symbol: h.symbol.toUpperCase(),
-                name: (h.name ?? (d as { name?: string | null }).name) ?? null,
-                price,
-                changePct,
-                weight,
-              };
-              return mover;
-            } catch { return null; }
-          })
-        );
+          .slice(0, 40);
+
+        // Compute weights locally (no API needed)
+        const withWeights = top.map((h) => ({
+          h,
+          weight: (h.shares * (h.lastPrice ?? 0)) / total * 100,
+        }));
+
+        // Pre-filter: must have weight > 5% OR be potentially significant — we fetch all via batch
+        const symbols = withWeights.map(({ h }) => h.symbol.toUpperCase()).join(",");
+        const res = await fetch(`/api/stocks/batch-quotes?symbols=${encodeURIComponent(symbols)}`);
+        if (!res.ok || cancelled) return;
+
+        const data = (await res.json()) as {
+          quotes: Array<{ symbol: string; price: number | null; changePct: number | null; name: string | null }>;
+        };
+        const quoteMap = new Map(data.quotes.map((q) => [q.symbol, q]));
+
+        const movers: HoldingMover[] = [];
+        for (const { h, weight } of withWeights) {
+          const sym = h.symbol.toUpperCase();
+          const q = quoteMap.get(sym);
+          if (!q) continue;
+          const changePct = q.changePct;
+          if (changePct === null || !Number.isFinite(changePct)) continue;
+          if (weight < 5 && Math.abs(changePct) < 1.5) continue;
+          movers.push({
+            symbol: sym,
+            name: h.name ?? q.name ?? null,
+            price: h.lastPrice ?? q.price ?? 0,
+            changePct,
+            weight,
+          });
+        }
+
         if (!cancelled)
-          setHoldingMovers(
-            (rows.filter((x) => x !== null) as HoldingMover[])
-              .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
-          );
+          setHoldingMovers(movers.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)));
       } finally {
         if (!cancelled) setHoldingMoversLoading(false);
       }
@@ -546,7 +562,9 @@ export default function OverviewPage() {
       }
       window.dispatchEvent(new Event("prices-refreshed"));
       setRefreshText(`Updated ${data.updatedCount ?? 0}, skipped ${data.skippedCount ?? 0}`);
-      setLastRefreshed(new Date());
+      const now = new Date();
+      setLastRefreshed(now);
+      try { localStorage.setItem("pf-last-refreshed", now.toISOString()); } catch { /* ignore */ }
       setMoversRefreshToken((t) => t + 1);
     } finally {
       setRefreshingPrices(false);
@@ -664,10 +682,11 @@ export default function OverviewPage() {
                         : "border-(--card-border) hover:bg-white/5")
                     }
                   >
-                    <p className="text-sm font-medium">{account.name}</p>
-                    <p className="text-xs text-(--muted)">
-                      {account.holdings.length} holdings · {hideValues ? "••••" : formatUsd(subtotal)}
-                    </p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-sm font-medium">{account.name}</span>
+                      <span className="text-xs text-(--muted)">{hideValues ? "••••" : formatUsd(subtotal)}</span>
+                    </div>
+                    <p className="text-xs text-(--muted)">{account.holdings.length} holdings</p>
                   </button>
                 </li>
               );
@@ -746,14 +765,14 @@ export default function OverviewPage() {
               </div>
               <p className="text-xl font-semibold">{hideValues ? "••••" : formatUsd(viewValue)}</p>
               <div className="relative mt-2 min-w-0">
-                <HoldingPie holdings={viewHoldings} height={overviewPieHeight} showDollar={!hideValues} />
                 <button
                   type="button"
                   onClick={() => setPortfolioTrendOpen(true)}
-                  className="absolute bottom-2 right-2 rounded-md border border-cyan-500/35 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-100 hover:bg-cyan-500/20"
+                  className="absolute top-0 right-0 z-10 rounded-md border border-cyan-500/35 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-100 hover:bg-cyan-500/20"
                 >
                   Analyze
                 </button>
+                <HoldingPie holdings={viewHoldings} height={overviewPieHeight} showDollar={!hideValues} />
               </div>
             </div>
 
