@@ -1,4 +1,4 @@
-import type { Holding } from "@/generated/prisma";
+import type { Holding } from "@prisma/client";
 
 export type Slice = { label: string; value: number; pct: number; color: string };
 

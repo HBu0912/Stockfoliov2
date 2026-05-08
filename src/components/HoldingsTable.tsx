@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
-import type { Holding } from "@/generated/prisma";
+import type { Holding } from "@prisma/client";
 import { TickerSymbol } from "./TickerSymbol";
 
 type H = Holding;
@@ -10,11 +10,13 @@ type H = Holding;
 export function HoldingsTable({
   holdings,
   accountTotal,
+  hideValues = false,
   onEditShares,
   onRemove,
 }: {
   holdings: H[];
   accountTotal: number;
+  hideValues?: boolean;
   onEditShares?: (id: string, nextShares: number) => void;
   onRemove?: (id: string) => void;
 }) {
@@ -60,13 +62,13 @@ export function HoldingsTable({
               </div>
               <div className="grid grid-cols-2 gap-y-1 text-xs">
                 <span className="text-(--muted)">Shares</span>
-                <span className="text-right font-mono">{formatNumber(h.shares, 4)}</span>
+                <span className="text-right font-mono">{hideValues ? "••••" : formatNumber(h.shares, 4)}</span>
                 <span className="text-(--muted)">Last price</span>
                 <span className="text-right">{formatUsd(h.lastPrice)}</span>
                 <span className="text-(--muted)">Market cap</span>
                 <span className="text-right">{formatMarketCap(h.marketCap)}</span>
                 <span className="text-(--muted)">Value</span>
-                <span className="text-right font-medium">{formatUsd(val)}</span>
+                <span className="text-right font-medium">{hideValues ? "••••" : formatUsd(val)}</span>
               </div>
               {(onEditShares || onRemove) && (
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-1">
@@ -113,10 +115,10 @@ export function HoldingsTable({
                   <td className="p-2 font-mono font-medium">
                     <TickerSymbol symbol={h.symbol} className="underline-offset-2 hover:underline" />
                   </td>
-                  <td className="p-2 text-right font-mono">{formatNumber(h.shares, 4)}</td>
+                  <td className="p-2 text-right font-mono">{hideValues ? "••••" : formatNumber(h.shares, 4)}</td>
                   <td className="p-2 text-right">{formatUsd(h.lastPrice)}</td>
                   <td className="p-2 text-right">{formatMarketCap(h.marketCap)}</td>
-                  <td className="p-2 text-right font-medium">{formatUsd(val)}</td>
+                  <td className="p-2 text-right font-medium">{hideValues ? "••••" : formatUsd(val)}</td>
                   <td className="p-2 text-right">{accountTotal > 0 ? `${pct.toFixed(1)}%` : "—"}</td>
                   {(onEditShares || onRemove) && (
                     <td className="p-2">

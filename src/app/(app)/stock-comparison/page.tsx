@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { formatMarketCap, formatNumber, formatUsd } from "@/lib/money";
 import { TickerSymbol } from "@/components/TickerSymbol";
 import { StockComparisonOverlayChart, type CompareIntervalKey } from "@/components/StockComparisonOverlayChart";
+import { ShareButton } from "@/components/ShareButton";
 
 type ComparedStock = {
   symbol: string;
@@ -97,7 +99,7 @@ const metricConfigs: MetricConfig[] = [
     label: "Dividend Yield",
     description: "Annual dividend payout as a percentage of share price.",
     wins: "higher",
-    format: (v) => (v == null ? "—" : `${formatNumber(v * 100, 2)}%`),
+    format: (v) => (v == null ? "—" : `${formatNumber(v, 2)}%`),
   },
 ];
 
@@ -110,26 +112,51 @@ const compareIntervals: CompareIntervalKey[] = ["1D", "1W", "1M", "3M", "YTD", "
 const LS_TICKERS = "pf-stock-comparison-tickers";
 const LS_INTERVAL = "pf-stock-comparison-interval";
 const MAX_COMPARE = 5;
+const tickerNameColors = [
+  "#60a5fa",
+  "#f59e0b",
+  "#a78bfa",
+  "#06b6d4",
+  "#8b5cf6",
+];
 
 export default function StockComparisonPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const [tickerInput, setTickerInput] = useState("");
   const [tickers, setTickers] = useState<string[]>([]);
   const [stocks, setStocks] = useState<ComparedStock[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartInterval, setChartInterval] = useState<CompareIntervalKey>("1M");
+  const [activeTab, setActiveTab] = useState<"overlay" | "metrics">("overlay");
   const [hydrated, setHydrated] = useState(false);
+
+  const urlSymbols = useMemo(
+    () =>
+      (params.get("symbols") ?? "")
+        .split(",")
+        .map((s) => normalizeTicker(s))
+        .filter(Boolean)
+        .slice(0, MAX_COMPARE),
+    [params]
+  );
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(LS_TICKERS);
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (Array.isArray(parsed)) {
-          const cleaned = [
-            ...new Set(parsed.map((x) => normalizeTicker(String(x))).filter(Boolean)),
-          ].slice(0, MAX_COMPARE);
-          setTickers(cleaned);
+      if (urlSymbols.length > 0) {
+        setTickers(urlSymbols);
+      } else {
+        const raw = localStorage.getItem(LS_TICKERS);
+        if (raw) {
+          const parsed = JSON.parse(raw) as unknown;
+          if (Array.isArray(parsed)) {
+            const cleaned = [
+              ...new Set(parsed.map((x) => normalizeTicker(String(x))).filter(Boolean)),
+            ].slice(0, MAX_COMPARE);
+            setTickers(cleaned);
+          }
         }
       }
       const iv = localStorage.getItem(LS_INTERVAL);
@@ -140,7 +167,7 @@ export default function StockComparisonPage() {
       // ignore
     }
     setHydrated(true);
-  }, []);
+  }, [urlSymbols]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -149,7 +176,11 @@ export default function StockComparisonPage() {
     } catch {
       // ignore
     }
-  }, [tickers, hydrated]);
+    const cur = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+    if (tickers.length > 0) cur.set("symbols", tickers.join(","));
+    else cur.delete("symbols");
+    router.replace(`${pathname}?${cur.toString()}`, { scroll: false });
+  }, [tickers, hydrated, router, pathname]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -238,17 +269,25 @@ export default function StockComparisonPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-(--card-border) bg-(--card) px-5 py-4 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">Stock Comparison</h1>
-        <p className="mt-1 text-sm text-(--muted)">Add 2–5 tickers; comparison and chart update automatically.</p>
+      <div className="rounded-2xl border border-cyan-400/40 bg-gradient-to-br from-slate-900/95 to-indigo-900/70 px-5 py-4 shadow-lg shadow-cyan-700/25">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="bg-linear-to-r from-cyan-200 via-sky-200 to-violet-200 bg-clip-text text-2xl font-semibold tracking-tight text-transparent">Stock Comparison</h1>
+            <p className="mt-1 text-sm text-slate-300">Compare tickers against each other.</p>
+          </div>
+          <ShareButton
+            title={`Stock Comparison: ${tickers.join(", ") || "selection"}`}
+            url={`/stock-comparison?symbols=${encodeURIComponent(tickers.join(","))}`}
+          />
+        </div>
       </div>
 
-      <section className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm">
+      <section className="rounded-2xl border border-sky-400/35 bg-gradient-to-br from-slate-900/90 to-slate-800/80 p-4 shadow-lg shadow-sky-700/20">
         <div className="flex flex-col gap-3 md:flex-row md:items-end">
           <label className="flex-1">
-            <span className="mb-1 block text-sm text-(--muted)">Ticker symbol</span>
+            <span className="mb-1 block text-sm text-slate-300">Ticker symbol</span>
             <input
-              className="w-full rounded-md border border-(--card-border) bg-(--background) px-3 py-2 text-sm font-mono uppercase"
+              className="w-full rounded-md border border-cyan-400/30 bg-slate-900/80 px-3 py-2 text-sm font-mono uppercase"
               value={tickerInput}
               onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
               onKeyDown={(e) => {
@@ -264,7 +303,7 @@ export default function StockComparisonPage() {
             type="button"
             onClick={addTicker}
             disabled={tickers.length >= MAX_COMPARE}
-            className="rounded-md border border-(--card-border) px-3 py-2 text-sm hover:bg-(--background) disabled:opacity-60"
+            className="rounded-md border border-violet-400/35 bg-violet-500/15 px-3 py-2 text-sm text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
           >
             Add Symbol
           </button>
@@ -274,7 +313,7 @@ export default function StockComparisonPage() {
           {tickers.map((symbol) => (
             <span
               key={symbol}
-              className="inline-flex items-center gap-2 rounded-full border border-(--card-border) bg-(--background) px-3 py-1 text-sm font-mono"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/25 bg-slate-900/75 px-3 py-1 text-sm font-mono"
             >
               {symbol}
               <button
@@ -298,44 +337,77 @@ export default function StockComparisonPage() {
 
       <section className="space-y-3">
         {tickers.length < 2 ? (
-          <div className="rounded-2xl border border-(--card-border) bg-(--card) px-4 py-8 text-center text-sm text-(--muted) shadow-sm">
+          <div className="rounded-2xl border border-sky-400/35 bg-gradient-to-br from-slate-900/90 to-slate-800/75 px-4 py-8 text-center text-sm text-slate-300 shadow-lg shadow-sky-700/20">
             Add at least two symbols (up to five). Your list is saved for next visit.
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-(--card-border) bg-(--card) px-3 py-2 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-(--muted)">Chart window</p>
-              <div className="flex flex-wrap gap-1">
-                {compareIntervals.map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setChartInterval(k)}
-                    className={
-                      "rounded-md px-2 py-1 text-xs " +
-                      (chartInterval === k
-                        ? "bg-(--accent) text-(--accent-foreground)"
-                        : "border border-(--card-border) hover:bg-(--background)")
-                    }
-                  >
-                    {k}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="min-w-0 space-y-4">
-              <StockComparisonOverlayChart
-                symbols={chartSymbols}
-                interval={chartInterval}
-                heightClassName="h-[min(64vh,680px)] min-h-[340px] w-full"
-              />
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-400/30 bg-slate-900/80 p-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("overlay")}
+                  className={
+                    "rounded-md px-3 py-1.5 text-xs font-semibold " +
+                    (activeTab === "overlay"
+                      ? "bg-(--accent) text-(--accent-foreground)"
+                      : "border border-(--card-border) hover:bg-(--background)")
+                  }
+                >
+                  Overlay Performance
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("metrics")}
+                  className={
+                    "rounded-md px-3 py-1.5 text-xs font-semibold " +
+                    (activeTab === "metrics"
+                      ? "bg-(--accent) text-(--accent-foreground)"
+                      : "border border-(--card-border) hover:bg-(--background)")
+                  }
+                >
+                  Comparison Metrics
+                </button>
+              </div>
+
+              {activeTab === "overlay" && (
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-400/30 bg-slate-900/80 px-3 py-2 shadow-lg shadow-violet-700/15">
+                  <p className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                    Chart window
+                  </p>
+                  <div className="scrollbar-hide flex max-w-full flex-nowrap gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:overflow-visible">
+                    {compareIntervals.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setChartInterval(k)}
+                        className={
+                          "shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-xs " +
+                          (chartInterval === k
+                            ? "bg-(--accent) text-(--accent-foreground)"
+                            : "border border-(--card-border) hover:bg-(--background)")
+                        }
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "overlay" && (
+                <StockComparisonOverlayChart
+                  symbols={chartSymbols}
+                  interval={chartInterval}
+                  heightClassName="h-[min(64vh,680px)] min-h-[340px] w-full"
+                />
+              )}
               {loading && stocks.length === 0 && (
                 <p className="text-center text-sm text-(--muted)">Loading comparison…</p>
               )}
 
-              {stocks.length > 0 && (
-                <div className="rounded-2xl border border-(--card-border) bg-(--card) p-4 shadow-sm ring-1 ring-black/5 dark:ring-white/10">
+              {stocks.length > 0 && activeTab === "metrics" && (
+                <div className="rounded-2xl border border-sky-400/30 bg-gradient-to-br from-slate-900/90 to-slate-800/75 p-4 shadow-lg shadow-sky-700/20 ring-1 ring-black/5 dark:ring-white/10">
                   <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-base font-semibold tracking-tight text-foreground">Comparison metrics</p>
                     <p className="text-xs text-(--muted)">
@@ -351,7 +423,7 @@ export default function StockComparisonPage() {
                           gridTemplateColumns: `minmax(100px,120px) repeat(${stocks.length}, minmax(0,1fr))`,
                         }}
                       >
-                        <div className="flex h-11 items-center rounded-lg bg-slate-100 px-2 text-xs font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800/90 dark:text-slate-300">
+                        <div className="flex h-11 items-center rounded-lg bg-indigo-600 px-2 text-xs font-bold uppercase tracking-wide text-white dark:bg-indigo-500">
                           Metric
                         </div>
                         {stocks.map((stock, colIdx) => (
@@ -360,14 +432,19 @@ export default function StockComparisonPage() {
                             className={
                               "flex h-11 w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border px-2 " +
                               (colIdx % 2 === 0
-                                ? "border-slate-200/90 bg-slate-50 dark:border-slate-600/60 dark:bg-slate-800/50"
-                                : "border-slate-200/90 bg-white dark:border-slate-600/60 dark:bg-slate-900/40")
+                                ? "border-zinc-200/90 bg-zinc-50 dark:border-zinc-600/60 dark:bg-zinc-800/50"
+                                : "border-zinc-200/90 bg-white dark:border-zinc-600/60 dark:bg-zinc-900/40")
                             }
                           >
-                            <TickerSymbol
-                              symbol={stock.symbol}
-                              className="block w-full min-w-0 truncate text-center text-sm font-bold tracking-tight text-slate-900 underline-offset-2 hover:underline dark:text-slate-100"
-                            />
+                            <span
+                              className="block w-full min-w-0"
+                              style={{ color: tickerNameColors[colIdx % tickerNameColors.length] }}
+                            >
+                              <TickerSymbol
+                                symbol={stock.symbol}
+                                className="block w-full min-w-0 truncate text-center text-sm font-extrabold tracking-tight underline-offset-2 hover:underline"
+                              />
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -379,24 +456,24 @@ export default function StockComparisonPage() {
                             className={
                               "grid gap-2 rounded-lg px-1 py-1.5 transition-colors " +
                               (rowIdx % 2 === 0
-                                ? "bg-slate-50/80 dark:bg-slate-900/25"
+                                ? "bg-zinc-50/80 dark:bg-zinc-900/25"
                                 : "bg-transparent")
                             }
                             style={{
                               gridTemplateColumns: `minmax(100px,120px) repeat(${stocks.length}, minmax(0,1fr))`,
                             }}
                           >
-                            <div className="flex min-h-10 min-w-0 items-center gap-1.5 pl-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                              <span className="min-w-0 truncate">{metric.label}</span>
+                            <div className="flex min-h-10 min-w-0 items-center justify-between gap-1.5 rounded-md bg-indigo-600 pl-2 pr-1.5 text-xs font-semibold text-white dark:bg-indigo-500">
+                              <span className="min-w-0 pr-1 leading-tight">{metric.label}</span>
                               <span className="group relative inline-flex shrink-0">
                                 <button
                                   type="button"
-                                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-bold text-slate-500 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-zinc-300 bg-white text-[10px] font-bold text-zinc-500 shadow-sm hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
                                   aria-label={`${metric.label} description`}
                                 >
                                   i
                                 </button>
-                                <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 rounded-lg border border-(--card-border) bg-(--card) px-2 py-1.5 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
+                                <span className="pointer-events-none absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-(--card-border) bg-(--card) px-2 py-1.5 text-left text-[11px] font-normal leading-snug text-(--muted) opacity-0 shadow-lg whitespace-normal break-words group-hover:opacity-100">
                                   {metric.description}
                                 </span>
                               </span>
@@ -405,10 +482,7 @@ export default function StockComparisonPage() {
                             {stocks.map((stock, colIdx) => {
                               const value = stock[metric.key] as number | null;
                               const isWinner = winnerMap.get(metric.key)?.has(stock.symbol) ?? false;
-                              const baseCol =
-                                colIdx % 2 === 0
-                                  ? "border-sky-200/80 bg-sky-50/70 dark:border-sky-700/40 dark:bg-sky-950/20"
-                                  : "border-indigo-200/80 bg-indigo-50/60 dark:border-indigo-700/40 dark:bg-indigo-950/20";
+                              const baseCol = "border-zinc-300/80 bg-zinc-100/70 dark:border-zinc-700/50 dark:bg-zinc-900/40";
                               return (
                                 <div
                                   key={`${metric.key}-${stock.symbol}`}
@@ -416,7 +490,7 @@ export default function StockComparisonPage() {
                                     "flex min-h-10 items-center justify-center overflow-hidden rounded-lg border px-2 text-center text-sm tabular-nums " +
                                     (isWinner
                                       ? "border-emerald-600 bg-emerald-200/90 font-semibold text-emerald-950 shadow-sm dark:border-emerald-400 dark:bg-emerald-500/35 dark:text-emerald-50"
-                                      : baseCol + " font-medium text-slate-800 dark:text-slate-100")
+                                      : baseCol + " font-medium text-zinc-500 dark:text-zinc-400")
                                   }
                                   title={metric.format(value)}
                                 >

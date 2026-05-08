@@ -27,7 +27,11 @@ export default function LoginPage() {
       setErr(d.error ?? "Sign in failed");
       return;
     }
-    router.push("/overview");
+    const next =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("next") || "/overview"
+        : "/overview";
+    router.push(next);
     router.refresh();
   }
 
@@ -80,7 +84,7 @@ export default function LoginPage() {
       </p>
       <p className="mt-2 text-center text-sm text-(--muted)">
         New here?{" "}
-        <Link href="/features" className="text-(--accent)">
+        <Link href="/#preview" className="text-(--accent)">
           Explore features
         </Link>
       </p>

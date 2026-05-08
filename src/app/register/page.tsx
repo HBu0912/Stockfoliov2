@@ -9,6 +9,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function RegisterPage() {
     const r = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, name: name || undefined }),
+      body: JSON.stringify({ email, password, name: name || undefined, username }),
     });
     setPending(false);
     if (!r.ok) {
@@ -43,6 +44,16 @@ export default function RegisterPage() {
       <p className="mt-1 text-sm text-(--muted)">At least 8 characters. Your password is never stored in plain text.</p>
       {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
       <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3">
+        <div>
+          <label className="text-sm font-medium">Username</label>
+          <input
+            className="mt-1 w-full rounded-md border border-(--card-border) bg-(--background) px-3 py-2 text-sm"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))}
+            placeholder="Unique handle"
+            required
+          />
+        </div>
         <div>
           <label className="text-sm font-medium">Display name (optional)</label>
           <input
@@ -91,7 +102,7 @@ export default function RegisterPage() {
       </p>
       <p className="mt-2 text-center text-sm text-(--muted)">
         Want a tour first?{" "}
-        <Link href="/features" className="text-(--accent)">
+        <Link href="/#preview" className="text-(--accent)">
           View features
         </Link>
       </p>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -27,7 +27,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-1 flex-col bg-(--background) text-foreground">{children}</body>
+      <body className="flex min-h-full min-w-0 flex-1 flex-col overflow-x-clip bg-(--background) text-foreground">{children}</body>
     </html>
   );
 }

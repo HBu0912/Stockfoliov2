@@ -44,6 +44,13 @@ function chartWindow(interval: IntervalKey, firstTradeDate: Date | null) {
   };
 }
 
+function withWarmup(period1: Date, interval: IntervalKey) {
+  const day = 24 * 60 * 60 * 1000;
+  const warmupDays =
+    interval === "1D" ? 7 : interval === "1W" ? 30 : interval === "1M" ? 60 : interval === "3M" ? 120 : interval === "YTD" ? 180 : interval === "1Y" ? 240 : 365;
+  return new Date(period1.getTime() - warmupDays * day);
+}
+
 function newYorkDateKey(dateISO: string): string {
   const d = new Date(dateISO);
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -95,6 +102,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
   const interval: IntervalKey = isIntervalKey(intervalRaw) ? intervalRaw : "1M";
   const newsLimitRaw = Number(u.searchParams.get("newsLimit") ?? "5");
   const newsOffsetRaw = Number(u.searchParams.get("newsOffset") ?? "0");
+  const includeWarmup = u.searchParams.get("includeWarmup") === "1";
   const newsLimit = Number.isFinite(newsLimitRaw) ? Math.min(20, Math.max(1, newsLimitRaw)) : 5;
   const newsOffset = Number.isFinite(newsOffsetRaw) ? Math.max(0, newsOffsetRaw) : 0;
 
@@ -107,6 +115,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
 
     const desiredEnd = newsOffset + newsLimit;
 
+    const window = chartWindow(interval, firstTradeDate);
+    const chartPeriod1 = includeWarmup ? withWarmup(window.period1, interval) : window.period1;
     const [summary, chart] = await Promise.all([
       yahoo.quoteSummary(symbol, {
         modules: [
@@ -118,7 +128,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
           "recommendationTrend",
         ],
       }),
-      yahoo.chart(symbol, { period1, period2, interval: chartInterval }),
+      yahoo.chart(symbol, { period1: chartPeriod1, period2: window.period2, interval: window.chartInterval }),
     ]);
 
     let newsFetchCount = Math.min(200, Math.max(20, desiredEnd));
@@ -182,7 +192,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
           at: q.date.toISOString(),
           close: Number(q.close),
         })) ?? [];
-    const points = interval === "1W" ? keepLastTradingWeekPoints(rawPoints) : rawPoints;
+    const clippedRawPoints = rawPoints.filter((p) => new Date(p.at).getTime() >= window.period1.getTime());
+    const points = interval === "1W" ? keepLastTradingWeekPoints(clippedRawPoints) : clippedRawPoints;
+    const warmupPoints = interval === "1W" ? keepLastTradingWeekPoints(rawPoints) : rawPoints;
 
     const current = n(quote.regularMarketPrice) ?? n(quote.postMarketPrice) ?? n(quote.preMarketPrice);
     const low52 = n(quote.fiftyTwoWeekLow);
@@ -212,6 +224,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
       name: quote.longName ?? quote.shortName ?? quote.displayName ?? symbol,
       interval,
       chart: points,
+      smaBaseChart: includeWarmup ? warmupPoints : points,
       changePct,
       sector: summary.summaryProfile?.sector ?? null,
       industry: summary.summaryProfile?.industry ?? null,
@@ -234,6 +247,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
             strongSell: summary.recommendationTrend.trend[0].strongSell ?? 0,
           }
         : null,
+      analystTargets: {
+        targetHigh: n(summary.financialData?.targetHighPrice),
+        targetLow: n(summary.financialData?.targetLowPrice),
+        targetMean: n(summary.financialData?.targetMeanPrice),
+        targetMedian: n(summary.financialData?.targetMedianPrice),
+        numAnalysts: n(summary.financialData?.numberOfAnalystOpinions),
+        recommendationKey: summary.financialData?.recommendationKey ?? null,
+      },
       news: pagedNews,
       newsMeta: {
         limit: newsLimit,
@@ -258,6 +279,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
         price: current,
         marketCap: n(quote.marketCap),
         marketCapText: quote.marketCap != null ? formatMarketCap(quote.marketCap) : null,
+        totalRevenue: n(summary.financialData?.totalRevenue),
+        grossMargins: n(summary.financialData?.grossMargins),
+        operatingMargins: n(summary.financialData?.operatingMargins),
+        ebitdaMargins: n(summary.financialData?.ebitdaMargins),
         beta: fundamentals.beta,
         trailingPE: fundamentals.trailingPE,
         forwardPE: fundamentals.forwardPE,
@@ -271,6 +296,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ symbol: string 
         enterpriseToEbitda: fundamentals.enterpriseToEbitda,
         week52Low: low52,
         week52High: high52,
+        revenueGrowth: n(summary.financialData?.revenueGrowth),
       },
     });
   } catch {

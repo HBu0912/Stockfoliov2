@@ -1,4 +1,4 @@
-import type { Holding } from "@/generated/prisma";
+import type { Holding } from "@prisma/client";
 import { fetchQuoteWithYahooMarketData } from "@/lib/yahoo-quote-enrich";
 
 type HoldingLike = Pick<Holding, "symbol" | "marketCap" | "marketCapText">;

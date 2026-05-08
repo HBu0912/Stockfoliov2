@@ -274,26 +274,26 @@ export function StockComparisonOverlayChart({
   }, [merged, series]);
 
   const bubbleRows = useMemo(() => {
-    if (selectedRange) {
-      return selectedRange.perSymbol.map((x) => ({
-        symbol: x.symbol,
-        pct: x.pct,
-        color: palette[Math.max(0, series.findIndex((s) => s.symbol === x.symbol)) % palette.length],
-      }));
-    }
-    return series.map((s) => {
-      let last: number | null = null;
-      for (const row of merged) {
-        const v = Number((row as MergedRow)[s.symbol]);
-        if (Number.isFinite(v)) last = v;
-      }
-      const pct = last ?? 0;
-      return {
-        symbol: s.symbol,
-        pct,
-        color: palette[Math.max(0, series.findIndex((x) => x.symbol === s.symbol)) % palette.length],
-      };
-    });
+    const rows = selectedRange
+      ? selectedRange.perSymbol.map((x) => ({
+          symbol: x.symbol,
+          pct: x.pct,
+          color: palette[Math.max(0, series.findIndex((s) => s.symbol === x.symbol)) % palette.length],
+        }))
+      : series.map((s) => {
+          let last: number | null = null;
+          for (const row of merged) {
+            const v = Number((row as MergedRow)[s.symbol]);
+            if (Number.isFinite(v)) last = v;
+          }
+          const pct = last ?? 0;
+          return {
+            symbol: s.symbol,
+            pct,
+            color: palette[Math.max(0, series.findIndex((x) => x.symbol === s.symbol)) % palette.length],
+          };
+        });
+    return rows.sort((a, b) => b.pct - a.pct);
   }, [selectedRange, series, merged]);
   const chartBubbleLabel = selectedRange
     ? `${selectedRange.startLabel} → ${selectedRange.endLabel}`
@@ -309,9 +309,25 @@ export function StockComparisonOverlayChart({
 
   return (
     <div className="rounded-2xl border border-(--card-border) bg-(--card) p-3 shadow-sm">
-      <div>
-        <h3 className="text-sm font-semibold">Overlay performance</h3>
-        <p className="text-xs text-(--muted)">Normalized to 0% at the start of the selected window.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">Overlay performance</h3>
+          <p className="text-xs text-(--muted)">Normalized to 0% at the start of the selected window.</p>
+        </div>
+        {bubbleRows.length > 0 && (
+          <div className="rounded-xl border border-(--card-border) bg-(--card)/95 px-3 py-1.5 text-xs shadow-sm">
+            <p className="text-[10px] text-(--muted)">{chartBubbleLabel}</p>
+            <div className="space-y-0.5">
+              {bubbleRows.map((row) => (
+                <p key={row.symbol} className={row.pct < 0 ? "text-red-400" : "text-emerald-300"}>
+                  <span style={{ color: row.color }}>{row.symbol}</span>{" "}
+                  {row.pct > 0 ? "+" : ""}
+                  {formatNumber(row.pct, 2)}%
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className={"relative mt-2 rounded-xl border border-(--card-border) bg-(--background) p-2 " + heightClassName}>
@@ -470,20 +486,6 @@ export function StockComparisonOverlayChart({
               ))}
             </LineChart>
           </ResponsiveContainer>
-        )}
-        {bubbleRows.length > 0 && (
-          <div className="pointer-events-none absolute right-3 top-3 rounded-xl border border-(--card-border) bg-(--card)/95 px-3 py-1.5 text-xs shadow-sm">
-            <p className="text-[10px] text-(--muted)">{chartBubbleLabel}</p>
-            <div className="space-y-0.5">
-              {bubbleRows.map((row) => (
-                <p key={row.symbol} className={row.pct < 0 ? "text-red-400" : "text-emerald-300"}>
-                  <span style={{ color: row.color }}>{row.symbol}</span>{" "}
-                  {row.pct > 0 ? "+" : ""}
-                  {formatNumber(row.pct, 2)}%
-                </p>
-              ))}
-            </div>
-          </div>
         )}
         {openMarkerLeftPct != null && (
           <div

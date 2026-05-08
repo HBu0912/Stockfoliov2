@@ -6,9 +6,12 @@ import { StockAnalysisPanel } from "./StockAnalysisPanel";
 export function TickerSymbol({
   symbol,
   className,
+  onInteract,
 }: {
   symbol: string;
   className?: string;
+  /** Fires on click before opening the analysis panel (e.g. sync arena vote picker). */
+  onInteract?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const clean = symbol.trim().toUpperCase();
@@ -17,7 +20,10 @@ export function TickerSymbol({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          onInteract?.();
+          setOpen(true);
+        }}
         className={className ?? "font-sans underline-offset-2 hover:underline"}
       >
         {clean}

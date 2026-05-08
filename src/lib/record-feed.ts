@@ -15,7 +15,7 @@ export async function recordHoldingPositionChange(
   accountName: string
 ) {
   const globalAgg = await prisma.holding.aggregate({
-    where: { account: { userId }, symbol },
+    where: { account: { userId }, symbol: { equals: symbol, mode: "insensitive" } },
     _sum: { shares: true },
   });
   const globalNew = globalAgg?._sum?.shares ?? 0;
@@ -36,7 +36,7 @@ export async function recordHoldingPositionChange(
           pct: globalDelta.pct,
           oldShares: globalOld,
           newShares: globalNew,
-          accountName,
+          accountName: null,
         },
       })
     );
@@ -71,7 +71,7 @@ export async function deleteHoldingWithFeed(
   accountName: string
 ) {
   const globalAgg = await prisma.holding.aggregate({
-    where: { account: { userId }, symbol: holding.symbol },
+    where: { account: { userId }, symbol: { equals: holding.symbol, mode: "insensitive" } },
     _sum: { shares: true },
   });
   const globalOld = globalAgg._sum.shares ?? 0;
@@ -90,7 +90,7 @@ export async function deleteHoldingWithFeed(
           pct: globalDelta.pct,
           oldShares: globalOld,
           newShares: globalNew,
-          accountName,
+          accountName: null,
         },
       })
     );

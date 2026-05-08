@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTop5Slices } from "@/lib/allocations";
-import type { Holding } from "@/generated/prisma";
+import type { Holding } from "@prisma/client";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -30,7 +30,7 @@ export function HoldingPie({
 
   const data = slices.map((s) => ({ name: s.label, value: s.value, fill: s.color, pct: s.pct }));
   return (
-    <div style={{ minHeight: height + 56 }} className="w-full max-w-none">
+    <div style={{ minHeight: height + 84 }} className="w-full max-w-none overflow-hidden rounded-xl border border-(--card-border) bg-(--background) p-2">
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Tooltip
@@ -74,7 +74,7 @@ export function HoldingPie({
           </Pie>
         </PieChart>
       </ResponsiveContainer>
-      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 px-1 text-xs">
         {legendRows.map((s) => (
           <div key={s.label} className="flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-(--muted)">

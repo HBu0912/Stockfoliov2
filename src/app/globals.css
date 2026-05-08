@@ -1,19 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --card: #f8fafc;
-  --card-border: #e2e8f0;
-  --muted: #64748b;
-  --accent: #0f766e;
-  --accent-foreground: #f0fdfa;
-  --chart-1: oklch(0.58 0.16 255);
-  --chart-2: oklch(0.6 0.16 35);
-  --chart-3: oklch(0.68 0.12 150);
-  --chart-4: oklch(0.58 0.12 300);
-  --chart-5: oklch(0.65 0.1 200);
+  --background: #111827;
+  --foreground: #e5e7eb;
+  --card: #1f2937;
+  --card-border: #374151;
+  --muted: #cbd5e1;
+  --accent: #34d399;
+  --accent-foreground: #052e2b;
+  --chart-1: oklch(0.72 0.14 255);
+  --chart-2: oklch(0.7 0.16 40);
+  --chart-3: oklch(0.75 0.1 150);
+  --chart-4: oklch(0.7 0.1 300);
+  --chart-5: oklch(0.75 0.1 200);
   --ring: #0d9488;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -23,25 +24,27 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #111827;
-    --foreground: #e5e7eb;
-    --card: #1f2937;
-    --card-border: #374151;
-    --muted: #cbd5e1;
-    --accent: #34d399;
-    --accent-foreground: #052e2b;
-    --chart-1: oklch(0.72 0.14 255);
-    --chart-2: oklch(0.7 0.16 40);
-    --chart-3: oklch(0.75 0.1 150);
-    --chart-4: oklch(0.7 0.1 300);
-    --chart-5: oklch(0.75 0.1 200);
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes scroll-up {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+.movers-scroll {
+  animation: scroll-up var(--scroll-duration, 20s) linear infinite;
+}
+

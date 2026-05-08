@@ -23,10 +23,10 @@ export function formatPctChangeLine(p: {
       action = `opened ${p.symbol} - new position, +100% of the line${ac}`;
       break;
     case "INCREASE":
-      action = `added to ${p.symbol}: +${p.pct.toFixed(1)}% vs the prior line${ac}`;
+      action = `added to ${p.symbol}: +${p.pct.toFixed(1)}% vs the prior total position${ac}`;
       break;
     case "REDUCE":
-      action = `trimmed ${p.symbol}: ${p.pct.toFixed(1)}% of the prior line sold${ac}`;
+      action = `trimmed ${p.symbol}: ${p.pct.toFixed(1)}% of the prior total position sold${ac}`;
       break;
     case "CLOSE":
       action = `closed ${p.symbol}: 100% of the line sold${ac}`;
